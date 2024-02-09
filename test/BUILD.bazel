@@ -1,0 +1,43 @@
+package(
+	default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "test_common",
+    testonly = 1,
+    srcs = ["test_main.cpp"],
+    hdrs = glob(include = ["test_common/*.hpp"]),
+    includes = ["."],
+    deps = [
+        "//:stdexec",
+        "@catch2//:catch2",
+    ],
+)
+
+[cc_test(
+    name = file.replace("/", "_")[:-4],
+    srcs = [file],
+    copts = [
+        "-ftemplate-backtrace-limit=0",
+        "-ferror-limit=0",
+        "-fmacro-backtrace-limit=0",
+    ],
+    deps = [
+        ":test_common",
+        "//:stdexec",
+        "@catch2//:catch2",
+    ],
+) for file in glob(
+    include = ["**/*.cpp"],
+    exclude = [
+        "test_common/**",
+        "test_main.cpp",
+        "nvexec/**",
+        "tbbexec/**",
+        "stdexec/cpos/**",
+        "exec/test_repeat_effect_until_fail.cpp",
+        "exec/test_repeat_n_fail.cpp",
+        "stdexec/algos/adaptors/test_let_fail1.cpp",
+        "stdexec/algos/adaptors/test_then_fail1.cpp",
+    ],
+)]

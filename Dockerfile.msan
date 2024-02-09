@@ -1,0 +1,58 @@
+# Build an image with a snapshot of the latest clang build
+
+
+FROM gcc:bookworm
+
+
+# Install Bazel prerequesites and required tools.
+# See https://docs.bazel.build/versions/master/install-ubuntu.html
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      ca-certificates \
+      cmake \
+      file \
+      git \
+      make \
+      nasm \
+      pkg-config \
+      python-is-python3 \
+      python3 \
+      python3-brotli \
+      python3-dev \
+      python3-numpy \
+      python3-pip \
+      python3-setuptools \
+      python3-snappy \
+      python3-zstandard \
+      unzip \
+      vim \
+      wget \
+      zip \
+ && apt-get clean
+
+
+# Install Bazel + Google's LLVM build for Debian 10.
+# Check https://storage.googleapis.com/clang-builds-stable/clang-debian10/latest.txt
+# for the value of LLVM_LATEST.
+ARG LLVM_LATEST="f3d0613d852a90563a1e8704930a6e79368f106a"
+RUN wget https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel_6.5.0-linux-x86_64.deb -O /tmp/bazel_6.5.0-linux-x86_64.deb \
+ && dpkg -i /tmp/bazel_6.5.0-linux-x86_64.deb \
+ && rm /tmp/bazel_6.5.0-linux-x86_64.deb \
+ && wget https://storage.googleapis.com/clang-builds-stable/clang-debian10/clang_r${LLVM_LATEST}.tar.gz -O /tmp/clang.tar.gz \
+ && mkdir -p /opt/llvm/clang \
+ && tar -xzf /tmp/clang.tar.gz -C /opt/llvm/clang \
+ && wget https://storage.googleapis.com/clang-builds-stable/clang-debian10/libcxx_r${LLVM_LATEST}.tar.gz -O /tmp/libcxx.tar.gz \
+ && mkdir -p /opt/llvm/libcxx \
+ && tar -xzf /tmp/libcxx.tar.gz -C /opt/llvm/libcxx \
+ && wget https://storage.googleapis.com/clang-builds-stable/clang-debian10/libcxx-msan_r${LLVM_LATEST}.tar.gz -O /tmp/libcxx-msan.tar.gz \
+ && mkdir -p /opt/llvm/libcxx-msan \
+ && tar -xzf /tmp/libcxx-msan.tar.gz -C /opt/llvm/libcxx-msan \
+ && wget https://storage.googleapis.com/clang-builds-stable/clang-debian10/libcxx-tsan_r${LLVM_LATEST}.tar.gz -O /tmp/libcxx-tsan.tar.gz \
+ && mkdir -p /opt/llvm/libcxx-tsan \
+ && tar -xzf /tmp/libcxx-tsan.tar.gz -C /opt/llvm/libcxx-tsan \
+ && wget https://storage.googleapis.com/clang-builds-stable/clang-debian10/lld_r${LLVM_LATEST}.tar.gz -O /tmp/lld.tar.gz \
+ && mkdir -p /opt/llvm/lld \
+ && tar -xzf /tmp/lld.tar.gz -C /opt/llvm/lld \
+ && rm /tmp/*.tar.gz
+ 
