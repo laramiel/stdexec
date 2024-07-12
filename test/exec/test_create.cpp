@@ -51,8 +51,9 @@ namespace {
     void aVoidAPI(void* context, void (*completed)(void* context)) {
       // Execute some work asynchronously on some other thread. When its
       // work is finished, pass the result to the callback.
-      scope_.spawn(ex::on(
-        pool_.get_scheduler(), ex::then(ex::just(), [=]() noexcept { completed(context); })));
+      scope_.spawn(ex::on(pool_.get_scheduler(), ex::then(ex::just(), [=]() noexcept {
+                            completed(context);
+                          })));
     }
   };
 
@@ -63,7 +64,7 @@ namespace {
     auto snd = [this](int a, int b) {
       return exec::create<ex::set_value_t(int)>([a, b, this]<class Context>(Context& ctx) noexcept {
         anIntAPI(a, b, &ctx, [](void* pv, int result) {
-          ex::set_value(std::move(static_cast<Context*>(pv)->receiver), (int) result);
+          ex::set_value(std::move(static_cast<Context*>(pv)->receiver), static_cast<int>(result));
         });
       });
     }(1, 2);

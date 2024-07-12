@@ -174,10 +174,9 @@ namespace {
     "[adaptors][transfer]") {
     inline_scheduler sched{};
 
-    check_val_types<type_array<type_array<int&&>>>(ex::transfer(ex::just(1), sched));
-    check_val_types<type_array<type_array<int&&, double&&>>>(
-      ex::transfer(ex::just(3, 0.14), sched));
-    check_val_types<type_array<type_array<int&&, double&&, std::string&&>>>(
+    check_val_types<ex::__mset<pack<int>>>(ex::transfer(ex::just(1), sched));
+    check_val_types<ex::__mset<pack<int, double>>>(ex::transfer(ex::just(3, 0.14), sched));
+    check_val_types<ex::__mset<pack<int, double, std::string>>>(
       ex::transfer(ex::just(3, 0.14, std::string{"pi"}), sched));
   }
 
@@ -186,9 +185,9 @@ namespace {
     error_scheduler sched2{};
     error_scheduler<int> sched3{43};
 
-    check_err_types<type_array<>>(ex::transfer(ex::just(1), sched1));
-    check_err_types<type_array<std::exception_ptr>>(ex::transfer(ex::just(2), sched2));
-    check_err_types<type_array<int>>(ex::transfer(ex::just(3), sched3));
+    check_err_types<ex::__mset<>>(ex::transfer(ex::just(1), sched1));
+    check_err_types<ex::__mset<std::exception_ptr>>(ex::transfer(ex::just(2), sched2));
+    check_err_types<ex::__mset<int>>(ex::transfer(ex::just(3), sched3));
   }
 
   TEST_CASE(
@@ -196,7 +195,7 @@ namespace {
     "[adaptors][transfer]") {
     inline_scheduler sched{};
 
-    check_err_types<type_array<std::exception_ptr>>(
+    check_err_types<ex::__mset<std::exception_ptr>>(
       ex::transfer(ex::just(potentially_throwing{}), sched));
   }
 
@@ -228,13 +227,13 @@ namespace {
 
   // Customization of transfer
   // Return a different sender when we invoke this custom defined transfer implementation
-  auto tag_invoke(decltype(ex::transfer), just_val1_sender_t, inline_scheduler sched) {
+  auto tag_invoke(decltype(ex::transfer), just_val1_sender_t, inline_scheduler) {
     return ex::just(val_type1{53});
   }
 
   // Customization of schedule_from
   // Return a different sender when we invoke this custom defined transfer implementation
-  auto tag_invoke(decltype(ex::schedule_from), inline_scheduler sched, just_val2_sender_t) {
+  auto tag_invoke(decltype(ex::schedule_from), inline_scheduler, just_val2_sender_t) {
     return ex::just(val_type2{59});
   }
 
@@ -281,14 +280,14 @@ namespace {
 
   struct test_domain_A {
     template <ex::sender_expr_for<ex::transfer_t> Sender, class Env>
-    auto transform_sender(Sender&& sndr, Env&& env) const {
+    auto transform_sender(Sender&&, Env&&) const {
       return ex::just(std::string("hello"));
     }
   };
 
   struct test_domain_B {
     template <ex::sender_expr_for<ex::transfer_t> Sender, class Env>
-    auto transform_sender(Sender&& sndr, Env&& env) const {
+    auto transform_sender(Sender&&, Env&&) const {
       return ex::just(std::string("goodbye"));
     }
   };
@@ -305,4 +304,4 @@ namespace {
     ex::start(op);
     REQUIRE(res == "goodbye");
   }
-}
+} // namespace

@@ -32,16 +32,16 @@ namespace {
     auto s = exec::finally(just(), just());
     STATIC_REQUIRE(sender_in<decltype(s), empty_env>);
     STATIC_REQUIRE(set_equivalent<
-                     completion_signatures_of_t<decltype(s), empty_env>,
-                     completion_signatures<set_error_t(std::exception_ptr), set_value_t()>>);
+                   completion_signatures_of_t<decltype(s), empty_env>,
+                   completion_signatures<set_error_t(std::exception_ptr), set_value_t()>>);
   }
 
   TEST_CASE("finally executes the final action", "[adaptors][finally]") {
     bool called = false;
     auto s = exec::finally(just(), just() | then([&called]() noexcept { called = true; }));
     STATIC_REQUIRE(set_equivalent<
-                     completion_signatures_of_t<decltype(s), empty_env>,
-                     completion_signatures<set_error_t(std::exception_ptr), set_value_t()>>);
+                   completion_signatures_of_t<decltype(s), empty_env>,
+                   completion_signatures<set_error_t(std::exception_ptr), set_value_t()>>);
     sync_wait(s);
     CHECK(called);
   }
@@ -50,8 +50,8 @@ namespace {
     bool called = false;
     auto s = exec::finally(just(42), just() | then([&called]() noexcept { called = true; }));
     STATIC_REQUIRE(set_equivalent<
-                     completion_signatures_of_t<decltype(s), empty_env>,
-                     completion_signatures<set_error_t(std::exception_ptr), set_value_t(int&&)>>);
+                   completion_signatures_of_t<decltype(s), empty_env>,
+                   completion_signatures<set_error_t(std::exception_ptr), set_value_t(int)>>);
     auto [i] = *sync_wait(s);
     CHECK(called);
     CHECK(i == 42);
@@ -61,15 +61,28 @@ namespace {
     bool called = false;
 
     auto s = exec::finally(
-      just(21) | then([](int x) {
-        throw 42;
-        return x;
-      }),
+      just(21) | then([](int) -> int { throw 42; }),
       just() | then([&called]() noexcept { called = true; }));
     STATIC_REQUIRE(set_equivalent<
-                     completion_signatures_of_t<decltype(s), empty_env>,
-                     completion_signatures<set_error_t(std::exception_ptr), set_value_t(int&&)>>);
+                   completion_signatures_of_t<decltype(s), empty_env>,
+                   completion_signatures<set_error_t(std::exception_ptr), set_value_t(int)>>);
     CHECK_THROWS_AS(sync_wait(s), int);
     CHECK(called);
   }
-}
+
+  TEST_CASE("finally includes the error types of the final action", "[adaptors][finally]") {
+    auto s = exec::finally(just(), just_error(42));
+    STATIC_REQUIRE(
+      set_equivalent<
+        completion_signatures_of_t<decltype(s), empty_env>,
+        completion_signatures<set_value_t(), set_error_t(std::exception_ptr), set_error_t(int)>>);
+  }
+
+  TEST_CASE("finally includes the stopped signal of the final action", "[adaptors][finally]") {
+    auto s = exec::finally(just(), just_stopped());
+    STATIC_REQUIRE(
+      set_equivalent<
+        completion_signatures_of_t<decltype(s), empty_env>,
+        completion_signatures<set_value_t(), set_error_t(std::exception_ptr), set_stopped_t()>>);
+  }
+} // namespace

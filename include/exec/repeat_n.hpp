@@ -29,6 +29,8 @@
 #include <atomic>
 #include <concepts>
 #include <cstddef>
+#include <exception>
+#include <type_traits>
 
 namespace exec {
   namespace __repeat_n {
@@ -47,13 +49,22 @@ namespace exec {
         using receiver_concept = stdexec::receiver_t;
         __repeat_n_state<_Sender, _Receiver> *__state_;
 
-        template <__completion_tag _Tag, class... _Args>
-        friend void tag_invoke(_Tag, __t &&__self, _Args &&...__args) noexcept {
-          __self.__state_->__complete(_Tag(), (_Args &&) __args...);
+        template <class... _Args>
+        void set_value(_Args &&...__args) noexcept {
+          __state_->__complete(set_value_t(), static_cast<_Args &&>(__args)...);
         }
 
-        friend env_of_t<_Receiver> tag_invoke(get_env_t, const __t &__self) noexcept {
-          return get_env(__self.__state_->__receiver());
+        template <class _Error>
+        void set_error(_Error &&__err) noexcept {
+          __state_->__complete(set_error_t(), static_cast<_Error &&>(__err));
+        }
+
+        void set_stopped() noexcept {
+          __state_->__complete(set_stopped_t());
+        }
+
+        auto get_env() const noexcept -> env_of_t<_Receiver> {
+          return stdexec::get_env(__state_->__receiver());
         }
       };
     };
@@ -68,6 +79,7 @@ namespace exec {
     __child_count_pair(_Child, std::size_t) -> __child_count_pair<_Child>;
 
     STDEXEC_PRAGMA_PUSH()
+
     STDEXEC_PRAGMA_IGNORE_GNU("-Wtsan")
 
     template <class _Sender, class _Receiver>
@@ -84,7 +96,7 @@ namespace exec {
       trampoline_scheduler __sched_;
 
       __repeat_n_state(_Sender &&__sndr, _Receiver &)
-        : __pair_(__sexpr_apply((_Sender &&) __sndr, stdexec::__detail::__get_data())) {
+        : __pair_(__sexpr_apply(static_cast<_Sender &&>(__sndr), stdexec::__detail::__get_data())) {
         // Q: should we skip __connect() if __count_ == 0?
         __connect();
       }
@@ -107,8 +119,9 @@ namespace exec {
 
       void __start() noexcept {
         if (__pair_.__count_ == 0) {
-          stdexec::set_value((_Receiver &&) this->__receiver());
+          stdexec::set_value(static_cast<_Receiver &&>(this->__receiver()));
         } else {
+
           const bool __already_started
             [[maybe_unused]] = __started_.test_and_set(std::memory_order_relaxed);
           STDEXEC_ASSERT(!__already_started);
@@ -117,22 +130,23 @@ namespace exec {
       }
 
       template <class _Tag, class... _Args>
-      void __complete(_Tag, _Args &&...__args) noexcept {
+      void __complete(_Tag, _Args... __args) noexcept { // Intentionally by value...
         STDEXEC_ASSERT(__pair_.__count_ > 0);
-        __child_op_.__destroy();
+        __child_op_.__destroy(); // ... because this could potentially invalidate them.
         if constexpr (same_as<_Tag, set_value_t>) {
           try {
             if (--__pair_.__count_ == 0) {
-              stdexec::set_value((_Receiver &&) this->__receiver());
+              stdexec::set_value(static_cast<_Receiver &&>(this->__receiver()));
             } else {
               __connect();
               stdexec::start(__child_op_.__get());
             }
           } catch (...) {
-            stdexec::set_error((_Receiver &&) this->__receiver(), std::current_exception());
+            stdexec::set_error(
+              static_cast<_Receiver &&>(this->__receiver()), std::current_exception());
           }
         } else {
-          _Tag()((_Receiver &&) this->__receiver(), (_Args &&) __args...);
+          _Tag()(static_cast<_Receiver &&>(this->__receiver()), static_cast<_Args &&>(__args)...);
         }
       }
     };
@@ -152,28 +166,32 @@ namespace exec {
         completion_signatures<>,
         __mexception<_INVALID_ARGUMENT_TO_REPEAT_N_<>, _WITH_SENDER_<_Sender>>>;
 
-    template <class _Pair, class _Env>
+    template <class _Error>
+    using __error_t = completion_signatures<set_error_t(__decay_t<_Error>)>;
+
+    template <class _Pair, class... _Env>
     using __completions_t = //
-      stdexec::__try_make_completion_signatures<
-        decltype(__decay_t<_Pair>::__child_) &,
-        _Env,
-        stdexec::__try_make_completion_signatures<
-          stdexec::schedule_result_t<exec::trampoline_scheduler>,
-          _Env,
-          __with_exception_ptr>,
-        __mbind_front_q<__values_t, decltype(__decay_t<_Pair>::__child_)>>;
+      stdexec::transform_completion_signatures<
+        __completion_signatures_of_t<decltype(__decay_t<_Pair>::__child_) &, _Env...>,
+        stdexec::transform_completion_signatures<
+          __completion_signatures_of_t<stdexec::schedule_result_t<exec::trampoline_scheduler>, _Env...>,
+          __eptr_completion,
+          __sigs::__default_set_value,
+          __error_t>,
+        __mbind_front_q<__values_t, decltype(__decay_t<_Pair>::__child_)>::template __f,
+        __error_t>;
 
     struct __repeat_n_tag { };
 
     struct __repeat_n_impl : __sexpr_defaults {
       static constexpr auto get_completion_signatures = //
-        []<class _Sender, class _Env>(_Sender &&, _Env &&) noexcept {
-          return __completions_t<__data_of<_Sender>, _Env>{};
+        []<class _Sender, class... _Env>(_Sender &&, _Env &&...) noexcept {
+          return __completions_t<__data_of<_Sender>, _Env...>{};
         };
 
       static constexpr auto get_state = //
         []<class _Sender, class _Receiver>(_Sender &&__sndr, _Receiver &__rcvr) {
-          return __repeat_n_state{std::move(__sndr), __rcvr};
+          return __repeat_n_state{static_cast<_Sender &&>(__sndr), __rcvr};
         };
 
       static constexpr auto start = //
@@ -187,18 +205,20 @@ namespace exec {
       auto operator()(_Sender &&__sndr, std::size_t __count) const {
         auto __domain = __get_early_domain(__sndr);
         return stdexec::transform_sender(
-          __domain, __make_sexpr<repeat_n_t>(__count, (_Sender &&) __sndr));
+          __domain, __make_sexpr<repeat_n_t>(__count, static_cast<_Sender &&>(__sndr)));
       }
 
-      constexpr auto operator()(std::size_t __count) const
-        -> __binder_back<repeat_n_t, std::size_t> {
-        return {{}, {}, {__count}};
+      STDEXEC_ATTRIBUTE((always_inline))
+      constexpr auto
+        operator()(std::size_t __count) const -> __binder_back<repeat_n_t, std::size_t> {
+        return {{__count}, {}, {}};
       }
 
       template <class _Sender>
       auto transform_sender(_Sender &&__sndr, __ignore) {
         return __sexpr_apply(
-          (_Sender &&) __sndr, []<class _Child>(__ignore, std::size_t __count, _Child __child) {
+          static_cast<_Sender &&>(__sndr),
+          []<class _Child>(__ignore, std::size_t __count, _Child __child) {
             return __make_sexpr<__repeat_n_tag>(__child_count_pair{std::move(__child), __count});
           });
       }
@@ -211,5 +231,15 @@ namespace exec {
 
 namespace stdexec {
   template <>
-  struct __sexpr_impl<exec::__repeat_n::__repeat_n_tag> : exec::__repeat_n::__repeat_n_impl { };
-}
+  struct __sexpr_impl<exec::__repeat_n::__repeat_n_tag>
+    : exec::__repeat_n::__repeat_n_impl { };
+
+  template <>
+  struct __sexpr_impl<exec::repeat_n_t> : __sexpr_defaults {
+    static constexpr auto get_completion_signatures = //
+      []<class _Sender>(_Sender&&) noexcept           //
+      -> __completion_signatures_of_t<                //
+        transform_sender_result_t<default_domain, _Sender, empty_env>> {
+    };
+  };
+} // namespace stdexec

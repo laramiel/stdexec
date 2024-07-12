@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 NVIDIA Corporation
+ * Copyright (c) 2022-2024 NVIDIA Corporation
  *
  * Licensed under the Apache License Version 2.0 with LLVM Exceptions
  * (the "License"); you may not use this file except in compliance with
@@ -19,6 +19,9 @@
 #include <type_traits>
 
 #include "common.cuh"
+
+STDEXEC_PRAGMA_PUSH()
+STDEXEC_PRAGMA_IGNORE_GNU("-Wmissing-braces")
 
 namespace nvexec {
   namespace STDEXEC_STREAM_DETAIL_NS {
@@ -49,33 +52,36 @@ namespace nvexec {
 
           template <class... As>
             requires std::invocable<Fun, cudaStream_t, As&...>
-          friend void tag_invoke(set_value_t, __t&& self, As&&... as) noexcept {
-            cudaStream_t stream = self.op_state_.get_stream();
-            launch_params p = self.params_;
+          void set_value(As&&... as) noexcept {
+            cudaStream_t stream = op_state_.get_stream();
+            launch_params p = params_;
             kernel<As&...><<<p.grid_size, p.block_size, p.shared_memory, stream>>>(
-              std::move(self.fun_), stream, as...);
+              std::move(fun_), stream, as...);
 
             if (cudaError_t status = STDEXEC_DBG_ERR(cudaPeekAtLastError());
                 status == cudaSuccess) {
-              self.op_state_.propagate_completion_signal(stdexec::set_value, (As&&) as...);
+              op_state_.propagate_completion_signal(stdexec::set_value, static_cast<As&&>(as)...);
             } else {
-              self.op_state_.propagate_completion_signal(stdexec::set_error, std::move(status));
+              op_state_.propagate_completion_signal(stdexec::set_error, std::move(status));
             }
           }
 
-          template <__one_of<set_error_t, set_stopped_t> Tag, class... As>
-          friend void tag_invoke(Tag tag, __t&& self, As&&... as) noexcept {
-            self.op_state_.propagate_completion_signal(tag, (As&&) as...);
+          template <class Error>
+          void set_error(Error&& err) noexcept {
+            op_state_.propagate_completion_signal(set_error_t(), static_cast<Error&&>(err));
           }
 
-          friend auto tag_invoke(get_env_t, const __t& self) noexcept //
-            -> typename operation_state_base_t<ReceiverId>::env_t {
-            return self.op_state_.make_env();
+          void set_stopped() noexcept {
+            op_state_.propagate_completion_signal(set_stopped_t());
+          }
+
+          auto get_env() const noexcept -> typename operation_state_base_t<ReceiverId>::env_t {
+            return op_state_.make_env();
           }
 
           explicit __t(operation_state_base_t<ReceiverId>& op_state, Fun fun, launch_params params)
             : op_state_(op_state)
-            , fun_((Fun&&) fun)
+            , fun_(static_cast<Fun&&>(fun))
             , params_(params) {
           }
         };
@@ -93,14 +99,13 @@ namespace nvexec {
           __mbind_front_q<launch_error_t, Fun>>,
         As...>;
 
-      template <class CvrefSender, class Env, class Fun>
+      template <class Fun, class CvrefSender, class... Env>
       using completions_t = //
-        __try_make_completion_signatures<
-          CvrefSender,
-          Env,
-          completion_signatures< set_error_t(std::exception_ptr)>,
-          __mbind_front_q<_set_value_t, Fun>>;
-    }
+        transform_completion_signatures<
+          __completion_signatures_of_t<CvrefSender, Env...>,
+          completion_signatures<set_error_t(std::exception_ptr)>,
+          __mbind_front_q<_set_value_t, Fun>::template __f>;
+    } // namespace _launch
 
     template <class SenderId, class Fun>
     struct launch_sender_t {
@@ -113,63 +118,66 @@ namespace nvexec {
         Fun fun_;
         launch_params params_;
 
-        template <class Self, class Env>
-        using completions_t = _launch::completions_t<__copy_cvref_t<Self, Sender>, Env, Fun>;
+        template <class Self, class... Env>
+        using completions_t = _launch::completions_t<Fun, __copy_cvref_t<Self, Sender>, Env...>;
 
         template <class Receiver>
         using receiver_t = stdexec::__t<_launch::receiver_t<stdexec::__id<Receiver>, Fun>>;
 
         template <__decays_to<__t> Self, receiver Receiver>
           requires receiver_of<Receiver, completions_t<Self, env_of_t<Receiver>>>
-        friend auto tag_invoke(connect_t, Self&& self, Receiver rcvr)
-          -> stream_op_state_t< __copy_cvref_t<Self, Sender>, receiver_t<Receiver>, Receiver> {
+        static auto connect(Self&& self, Receiver rcvr)
+          -> stream_op_state_t<__copy_cvref_t<Self, Sender>, receiver_t<Receiver>, Receiver> {
           return stream_op_state<__copy_cvref_t<Self, Sender>>(
-            ((Self&&) self).sndr_,
-            (Receiver&&) rcvr,
+            static_cast<Self&&>(self).sndr_,
+            static_cast<Receiver&&>(rcvr),
             [&](operation_state_base_t<stdexec::__id<Receiver>>& stream_provider)
               -> receiver_t<Receiver> { //
               return receiver_t<Receiver>(stream_provider, self.fun_, self.params_);
             });
         }
 
-        template <__decays_to<__t> Self, class Env>
-        friend auto tag_invoke(get_completion_signatures_t, Self&&, Env&&)
-          -> completions_t<Self, Env> {
+        template <__decays_to<__t> Self, class... Env>
+        static auto get_completion_signatures(Self&&, Env&&...) -> completions_t<Self, Env...> {
           return {};
         }
 
-        friend auto tag_invoke(get_env_t, const __t& self) noexcept -> env_of_t<const Sender&> {
-          return get_env(self.sndr_);
+        auto get_env() const noexcept -> env_of_t<const Sender&> {
+          return stdexec::get_env(sndr_);
         }
       };
     };
 
     struct launch_t {
       template <class Sender, class Fun>
-      using sender_t = stdexec::__t<launch_sender_t< stdexec::__id<__decay_t<Sender>>, Fun >>;
+      using sender_t = stdexec::__t<launch_sender_t<stdexec::__id<__decay_t<Sender>>, Fun>>;
 
       template <sender Sender, __movable_value Fun>
       sender_t<Sender, Fun> operator()(Sender&& sndr, Fun&& fun) const {
-        return {{}, (Sender&&) sndr, (Fun&&) fun, {}};
+        return {{}, static_cast<Sender&&>(sndr), static_cast<Fun&&>(fun), {}};
       }
 
       template <sender Sender, __movable_value Fun>
       sender_t<Sender, Fun> operator()(Sender&& sndr, launch_params params, Fun&& fun) const {
-        return {{}, (Sender&&) sndr, (Fun&&) fun, params};
+        return {{}, static_cast<Sender&&>(sndr), static_cast<Fun&&>(fun), params};
       }
 
       template <__movable_value Fun>
-      __binder_back<launch_t, Fun> operator()(Fun&& fun) const {
-        return {{}, {}, {(Fun&&) fun}};
+      STDEXEC_ATTRIBUTE((always_inline))
+      auto
+        operator()(Fun&& fun) const -> __binder_back<launch_t, Fun> {
+        return {{static_cast<Fun&&>(fun)}};
       }
 
       template <__movable_value Fun>
-      __binder_back<launch_t, launch_params, Fun>
-        operator()(launch_params params, Fun&& fun) const {
+      STDEXEC_ATTRIBUTE((always_inline))
+      auto
+        operator()(launch_params params, Fun&& fun) const
+        -> __binder_back<launch_t, launch_params, Fun> {
         return {
+          {params, static_cast<Fun&&>(fun)},
           {},
-          {},
-          {params, (Fun&&) fun}
+          {}
         };
       }
     };
@@ -185,4 +193,6 @@ namespace stdexec::__detail {
   inline constexpr __mconst<
     nvexec::STDEXEC_STREAM_DETAIL_NS::launch_sender_t<__name_of<__t<SenderId>>, Fun>>
     __name_of_v<nvexec::STDEXEC_STREAM_DETAIL_NS::launch_sender_t<SenderId, Fun>>{};
-}
+} // namespace stdexec::__detail
+
+STDEXEC_PRAGMA_POP()

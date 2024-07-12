@@ -26,7 +26,7 @@ namespace ex = stdexec;
 namespace {
   struct uncustomized_scheduler {
     struct operation_state {
-      friend void tag_invoke(ex::start_t, operation_state& self) noexcept {
+      void start() & noexcept {
       }
     };
 
@@ -41,35 +41,28 @@ namespace {
       }
 
       struct env {
-        template <stdexec::__one_of<ex::set_value_t, ex::set_error_t, ex::set_stopped_t> CPO>
-        friend uncustomized_scheduler tag_invoke(ex::get_completion_scheduler_t<CPO>, const env&) //
-          noexcept {
+        template <stdexec::__completion_tag Tag>
+        uncustomized_scheduler query(ex::get_completion_scheduler_t<Tag>) const noexcept {
           return {};
         }
       };
 
-      friend env tag_invoke(ex::get_env_t, const sender&) noexcept {
+      env get_env() const noexcept {
         return {};
       }
     };
 
-    friend sender tag_invoke(ex::schedule_t, uncustomized_scheduler) {
+    sender schedule() const noexcept {
       return {};
     }
 
-    friend bool operator==(uncustomized_scheduler, uncustomized_scheduler) noexcept {
-      return true;
-    }
-
-    friend bool operator!=(uncustomized_scheduler, uncustomized_scheduler) noexcept {
-      return false;
-    }
+    bool operator==(const uncustomized_scheduler&) const noexcept = default;
   };
 
   template <ex::forward_progress_guarantee fpg>
   struct customized_scheduler {
     struct operation_state {
-      friend void tag_invoke(ex::start_t, operation_state& self) noexcept {
+      friend void tag_invoke(ex::start_t, operation_state&) noexcept {
       }
     };
 
@@ -84,19 +77,18 @@ namespace {
       }
 
       struct env {
-        template <stdexec::__one_of<ex::set_value_t, ex::set_error_t, ex::set_stopped_t> CPO>
-        friend customized_scheduler tag_invoke(ex::get_completion_scheduler_t<CPO>, const env&) //
-          noexcept {
+        template <stdexec::__completion_tag Tag>
+        customized_scheduler query(ex::get_completion_scheduler_t<Tag>) const noexcept {
           return {};
         }
       };
 
-      friend env tag_invoke(ex::get_env_t, const sender&) noexcept {
+      env get_env() const noexcept {
         return {};
       }
     };
 
-    friend sender tag_invoke(ex::schedule_t, customized_scheduler) {
+    sender schedule() const {
       return {};
     }
 
@@ -108,8 +100,8 @@ namespace {
       return false;
     }
 
-    constexpr friend ex::forward_progress_guarantee
-      tag_invoke(ex::get_forward_progress_guarantee_t, customized_scheduler) {
+    constexpr auto
+      query(ex::get_forward_progress_guarantee_t) const noexcept -> ex::forward_progress_guarantee {
       return fpg;
     }
   };

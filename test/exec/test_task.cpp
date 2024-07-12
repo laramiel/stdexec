@@ -17,14 +17,14 @@
 
 #include <stdexec/coroutine.hpp>
 
-#if !STDEXEC_STD_NO_COROUTINES_
-#include <exec/task.hpp>
-#include <exec/single_thread_context.hpp>
-#include <exec/async_scope.hpp>
+#if !STDEXEC_STD_NO_COROUTINES()
+#  include <exec/task.hpp>
+#  include <exec/single_thread_context.hpp>
+#  include <exec/async_scope.hpp>
 
-#include <catch2/catch.hpp>
+#  include <catch2/catch.hpp>
 
-#include <thread>
+#  include <thread>
 
 using namespace exec;
 using namespace stdexec;
@@ -34,13 +34,14 @@ namespace {
   // This is a work-around for clang-12 bugs in Release mode
   thread_local int __thread_id = 0;
 
-  int get_id() {
+  // This is a work-around for apple clang bugs in Release mode
+  STDEXEC_APPLE_CLANG([[clang::optnone]]) int get_id() {
     return __thread_id;
   }
 
   task<void> test_stickiness_for_two_single_thread_contexts_nested(
     scheduler auto scheduler1,
-    scheduler auto scheduler2,
+    scheduler auto,
     auto id1,
     auto id2) {
     CHECK(get_id() == id2);                       // This task is started in context2
@@ -64,8 +65,7 @@ namespace {
     co_await reschedule_coroutine_on(scheduler2); // Transition to context2
     CHECK(get_id() == id2);                       // Now we are in context2
     // Child task inherits context2
-    co_await test_stickiness_for_two_single_thread_contexts_nested(
-      scheduler1, scheduler2, id1, id2);
+    co_await test_stickiness_for_two_single_thread_contexts_nested(scheduler1, scheduler2, id1, id2);
     CHECK(get_id() == id2); // Child task is done, we are still in context2
   }                         // Reschedules back to context1
 
@@ -145,14 +145,12 @@ namespace {
       schedule(scheduler2) | then([] { __thread_id = 2; })));
     auto id1 = 1;
     auto id2 = 2;
-    auto t = test_stickiness_for_two_single_thread_contexts_with_sender(
-      scheduler1, scheduler2, id1, id2);
+    auto t =
+      test_stickiness_for_two_single_thread_contexts_with_sender(scheduler1, scheduler2, id1, id2);
     sync_wait(std::move(t));
   }
 
-  TEST_CASE(
-    "Test stickiness with two single threads with sender with on",
-    "[types][sticky][task]") {
+  TEST_CASE("Test stickiness with two single threads with sender with on", "[types][sticky][task]") {
     single_thread_context context1;
     single_thread_context context2;
     scheduler auto scheduler1 = context1.get_scheduler();
@@ -164,8 +162,7 @@ namespace {
     auto id2 = 2;
     auto t = on(
       scheduler1,
-      test_stickiness_for_two_single_thread_contexts_with_sender_(
-        scheduler1, scheduler2, id1, id2));
+      test_stickiness_for_two_single_thread_contexts_with_sender_(scheduler1, scheduler2, id1, id2));
     sync_wait(std::move(t) | then([&] { CHECK(get_id() == id1); }));
   }
 
@@ -184,7 +181,7 @@ namespace {
   namespace {
     task<void> test_stick_on_main_nested(
       scheduler auto sched1,
-      scheduler auto sched2,
+      scheduler auto,
       auto id_main_thread,
       [[maybe_unused]] auto id1,
       [[maybe_unused]] auto id2) {
@@ -207,7 +204,7 @@ namespace {
       co_await test_stick_on_main_nested(sched1, sched2, id_main_thread, id1, id2);
       CHECK(get_id() == id_main_thread);
     }
-  }
+  } // namespace
 
   TEST_CASE("Stick on main thread if completes_inline is not used", "[types][sticky][task]") {
     single_thread_context context1;
@@ -274,6 +271,6 @@ namespace {
     CHECK(count == 3);
   }
 
-}
+} // namespace
 
 #endif

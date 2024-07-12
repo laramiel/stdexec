@@ -192,7 +192,7 @@ namespace {
   TEST_CASE(
     "stopping ensure_started before the source completes calls set_stopped",
     "[adaptors][ensure_started]") {
-    stdexec::in_place_stop_source stop_source;
+    stdexec::inplace_stop_source stop_source;
     impulse_scheduler sch;
     bool called{false};
     auto snd = ex::on(sch, ex::just(19))
@@ -210,7 +210,7 @@ namespace {
   TEST_CASE(
     "stopping ensure_started before the lazy opstate is started calls set_stopped",
     "[adaptors][ensure_started]") {
-    stdexec::in_place_stop_source stop_source;
+    stdexec::inplace_stop_source stop_source;
     impulse_scheduler sch;
     int count = 0;
     bool called{false};
@@ -231,7 +231,7 @@ namespace {
   TEST_CASE(
     "stopping ensure_started after the task has already completed doesn't change the result",
     "[adaptors][ensure_started]") {
-    stdexec::in_place_stop_source stop_source;
+    stdexec::inplace_stop_source stop_source;
     int count = 0;
     auto snd = ex::just() //
              | ex::then([&] {
@@ -293,7 +293,7 @@ namespace {
 
   TEST_CASE("ensure_started with move only input sender", "[adaptors][ensure_started]") {
     bool called{false};
-    auto snd1 = ex::just(movable(42)) | ex::then([&](movable &&) { called = true; });
+    auto snd1 = ex::just(movable(42)) | ex::then([&](movable&&) { called = true; });
     CHECK_FALSE(called);
     auto snd = ex::ensure_started(std::move(snd1));
     CHECK(called);
@@ -308,4 +308,34 @@ namespace {
     auto op = ex::connect(std::move(snd), expect_void_receiver{});
     ex::start(op);
   }
-}
+
+  struct my_sender {
+    using sender_concept = stdexec::sender_t;
+    using is_sender = void;
+
+    using completion_signatures = ex::completion_signatures_of_t<decltype(ex::just())>;
+
+    template <class Recv>
+    friend auto tag_invoke(ex::connect_t, my_sender&&, Recv&& recv) {
+      return ex::connect(ex::just(), std::forward<Recv>(recv));
+    }
+
+    template <class Recv>
+    friend auto tag_invoke(ex::connect_t, const my_sender&, Recv&& recv) {
+      return ex::connect(ex::just(), std::forward<Recv>(recv));
+    }
+  };
+
+  TEST_CASE("ensure_started accepts a custom sender", "[adaptors][ensure_started]") {
+    auto snd1 = my_sender();
+    auto snd2 = ex::ensure_started(std::move(snd1));
+    static_assert(stdexec::__well_formed_sender<decltype(snd1)>);
+    static_assert(stdexec::__well_formed_sender<decltype(snd2)>);
+    using Snd = decltype(snd2);
+    static_assert(ex::enable_sender<Snd>);
+    static_assert(ex::sender<Snd>);
+    static_assert(ex::same_as<ex::env_of_t<Snd>, empty_env>);
+    (void) snd1;
+    (void) snd2;
+  }
+} // namespace

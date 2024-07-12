@@ -21,16 +21,17 @@
 #include "exec/static_thread_pool.hpp"
 #include "stdexec/concepts.hpp"
 #include "stdexec/execution.hpp"
-#include <exception>
-#include <system_error>
+
 #include <test_common/schedulers.hpp>
 #include <test_common/receivers.hpp>
 #include <test_common/senders.hpp>
 #include <test_common/type_helpers.hpp>
-#include <iostream>
 
 #include <catch2/catch.hpp>
+
+#include <memory>
 #include <type_traits>
+#include <utility>
 
 using namespace stdexec;
 
@@ -49,16 +50,16 @@ namespace {
 
       friend void tag_invoke(start_t, operation &self) noexcept {
         if (self.counter_ == 0) {
-          set_value((Receiver &&) self.rcvr_, true);
+          stdexec::set_value(static_cast<Receiver &&>(self.rcvr_), true);
         } else {
-          set_value((Receiver &&) self.rcvr_, false);
+          stdexec::set_value(static_cast<Receiver &&>(self.rcvr_), false);
         }
       }
     };
 
     template <receiver_of<completion_signatures> Receiver>
     friend operation<Receiver> tag_invoke(connect_t, boolean_sender self, Receiver rcvr) {
-      return {(Receiver &&) rcvr, --*self.counter_};
+      return {static_cast<Receiver &&>(rcvr), --*self.counter_};
     }
 
     std::shared_ptr<int> counter_ = std::make_shared<int>(1000);
@@ -81,11 +82,11 @@ namespace {
   TEST_CASE(
     "repeat_effect_until produces void value to downstream receiver",
     "[adaptors][repeat_effect_until]") {
-    sender auto source = just(1) | then([](int n) { return true; });
+    sender auto source = just(1) | then([](int) { return true; });
     sender auto snd = exec::repeat_effect_until(std::move(source));
     // The receiver checks if we receive the void value
     auto op = stdexec::connect(std::move(snd), expect_void_receiver{});
-    start(op);
+    stdexec::start(op);
   }
 
   TEST_CASE("simple example for repeat_effect_until", "[adaptors][repeat_effect_until]") {
@@ -105,7 +106,7 @@ namespace {
     "[adaptors][repeat_effect_until]") {
     sender auto snd = exec::repeat_effect_until(just(1));
     auto op = stdexec::connect(std::move(snd), expect_void_receiver{});
-    start(op);
+    stdexec::start(op);
   }
 
   TEST_CASE(
@@ -129,13 +130,13 @@ namespace {
     "[adaptors][repeat_effect_until]") {
     auto snd = just_error(std::string("error")) | exec::repeat_effect_until();
     auto op = ex::connect(std::move(snd), expect_error_receiver{std::string("error")});
-    start(op);
+    stdexec::start(op);
   }
 
   TEST_CASE("repeat_effect_until forwards set_stopped calls", "[adaptors][repeat_effect_until]") {
     auto snd = just_stopped() | exec::repeat_effect_until();
     auto op = ex::connect(std::move(snd), expect_stopped_receiver{});
-    start(op);
+    stdexec::start(op);
   }
 
   TEST_CASE(
@@ -165,4 +166,4 @@ namespace {
 
     REQUIRE(called);
   }
-}
+} // namespace

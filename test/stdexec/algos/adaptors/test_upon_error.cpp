@@ -56,7 +56,7 @@ namespace {
     using S = decltype(snd);
     static_assert(ex::sender<S>);
     using completion_sigs = decltype(ex::get_completion_signatures(snd, ex::empty_env{}));
-    static_assert(std::same_as< completion_sigs, ex::completion_signatures< ex::set_value_t() >>);
+    static_assert(ex::__mset_eq<ex::__mset<ex::set_value_t()>, completion_sigs>);
   }
 
   template <typename R>
@@ -64,7 +64,7 @@ namespace {
     R recv_;
 
     friend void tag_invoke(ex::start_t, oper& self) noexcept {
-      ex::set_value((R&&) self.recv_, 0);
+      ex::set_value(static_cast<R&&>(self.recv_), 0);
     }
   };
 
@@ -83,15 +83,11 @@ namespace {
       AdditionalCompletions...,
       ex::set_error_t(Error1),
       ex::set_error_t(Error2),
-      ex::set_error_t(Error3) >;
+      ex::set_error_t(Error3)>;
 
     template <typename R>
-    friend oper<R> tag_invoke(ex::connect_t, many_error_sender self, R&& r) {
-      return {{}, (R&&) r};
-    }
-
-    friend auto tag_invoke(ex::get_env_t, const many_error_sender&) noexcept -> ex::empty_env {
-      return {};
+    friend oper<R> tag_invoke(ex::connect_t, many_error_sender, R&& r) {
+      return {{}, static_cast<R&&>(r)};
     }
   };
 
@@ -109,42 +105,38 @@ namespace {
       using S = decltype(s);
       static_assert(ex::sender<S>);
       using completion_sigs = decltype(ex::get_completion_signatures(s, ex::empty_env{}));
-      static_assert(
-        std::same_as<
-          completion_sigs,
-          ex::completion_signatures<
-            ex::set_error_t(std::exception_ptr),
-            ex::set_value_t(Error1),
-            ex::set_value_t(Error2),
-            ex::set_value_t(Error4) >>);
+      static_assert(ex::__mset_eq<
+                    ex::__mset<
+                      ex::set_error_t(std::exception_ptr),
+                      ex::set_value_t(Error1),
+                      ex::set_value_t(Error2),
+                      ex::set_value_t(Error4)>,
+                    completion_sigs>);
     }
 
     {
-      auto s = many_error_sender<ex::set_value_t(int)>{} | ex::upon_error([](auto e) { return 0; });
+      auto s = many_error_sender<ex::set_value_t(int)>{} | ex::upon_error([](auto) { return 0; });
 
       using S = decltype(s);
       static_assert(ex::sender<S>);
       using completion_sigs = decltype(ex::get_completion_signatures(s, ex::empty_env{}));
-      static_assert(
-        std::same_as<
-          completion_sigs,
-          ex::completion_signatures< ex::set_error_t(std::exception_ptr), ex::set_value_t(int) >>);
+      static_assert(ex::__mset_eq<
+                    ex::__mset<ex::set_error_t(std::exception_ptr), ex::set_value_t(int)>,
+                    completion_sigs>);
     }
 
     {
       auto s = many_error_sender<ex::set_value_t(double)>{}
-             | ex::upon_error([](auto e) { return 0; });
+             | ex::upon_error([](auto) { return 0; });
 
       using S = decltype(s);
       static_assert(ex::sender<S>);
       using completion_sigs = decltype(ex::get_completion_signatures(s, ex::empty_env{}));
       static_assert(
-        std::same_as<
-          completion_sigs,
-          ex::completion_signatures<
-            ex::set_error_t(std::exception_ptr),
-            ex::set_value_t(double),
-            ex::set_value_t(int) >>);
+        ex::__mset_eq<
+          ex::
+            __mset<ex::set_error_t(std::exception_ptr), ex::set_value_t(double), ex::set_value_t(int)>,
+          completion_sigs>);
     }
   }
-}
+} // namespace

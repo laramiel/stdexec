@@ -30,10 +30,10 @@
 #include <vector>
 
 #if __has_include(<memory_resource>)
-#include <memory_resource>
+#  include <memory_resource>
 namespace pmr = std::pmr;
 #else
-#define STDEXEC_NO_MONOTONIC_BUFFER_RESOURCE 1
+#  define STDEXEC_NO_MONOTONIC_BUFFER_RESOURCE 1
 #endif
 
 struct statistics {
@@ -48,7 +48,7 @@ statistics compute_perf(
   auto dur = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
   auto dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(dur);
   auto dur_dbl = std::chrono::duration_cast<std::chrono::duration<double>>(dur);
-  double ops_per_sec = total_scheds / dur_dbl.count();
+  double ops_per_sec = static_cast<double>(total_scheds) / dur_dbl.count();
   return {dur_ms, ops_per_sec};
 }
 
@@ -72,7 +72,7 @@ statistics_all compute_perf(
   double min = std::numeric_limits<double>::max();
   for (std::size_t j = i0; j <= i; ++j) {
     auto stats = compute_perf(start[j], end[j], total_scheds);
-    average += stats.ops_per_sec / (i + 1 - i0);
+    average += stats.ops_per_sec / static_cast<double>(i + 1 - i0);
     max = std::max(max, stats.ops_per_sec);
     min = std::min(min, stats.ops_per_sec);
   }
@@ -82,7 +82,7 @@ statistics_all compute_perf(
     auto stats = compute_perf(start[j], end[j], total_scheds);
     variance += (stats.ops_per_sec - average) * (stats.ops_per_sec - average);
   }
-  variance /= (i + 1 - i0);
+  variance /= static_cast<double>(i + 1 - i0);
   double stddev = std::sqrt(variance);
   auto stats = compute_perf(start[i], end[i], total_scheds);
   statistics_all all{stats.total_time_ms, stats.ops_per_sec, average, max, min, stddev};
@@ -100,7 +100,7 @@ struct numa_deleter {
 
 template <class Pool, class RunThread>
 void my_main(int argc, char** argv, exec::numa_policy* policy = exec::get_numa_policy()) {
-  int nthreads = (int) std::thread::hardware_concurrency();
+  int nthreads = static_cast<int>(std::thread::hardware_concurrency());
   if (argc > 1) {
     nthreads = std::atoi(argv[1]);
   }
@@ -151,8 +151,8 @@ void my_main(int argc, char** argv, exec::numa_policy* policy = exec::get_numa_p
     if (i < warmup) {
       std::cout << "warmup: skip results\n";
     } else {
-      auto [dur_ms, ops_per_sec, avg, max, min, stddev] = compute_perf(
-        starts, ends, warmup, i, total_scheds);
+      auto [dur_ms, ops_per_sec, avg, max, min, stddev] =
+        compute_perf(starts, ends, warmup, i, total_scheds);
       auto percent = stddev / ops_per_sec * 100;
       std::cout << i + 1 << " " << dur_ms.count() << "ms, throughput: " << std::setprecision(3)
                 << ops_per_sec << ", average: " << avg << ", max: " << max << ", min: " << min
@@ -164,7 +164,7 @@ void my_main(int argc, char** argv, exec::numa_policy* policy = exec::get_numa_p
   for (auto& thread: threads) {
     thread.join();
   }
-  auto [dur_ms, ops_per_sec, avg, max, min, stddev] = compute_perf(
-    starts, ends, warmup, nRuns - 1, total_scheds);
+  auto [dur_ms, ops_per_sec, avg, max, min, stddev] =
+    compute_perf(starts, ends, warmup, nRuns - 1, total_scheds);
   std::cout << avg << " | " << max << " | " << min << " | " << stddev << "\n";
 }

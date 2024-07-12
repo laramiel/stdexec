@@ -33,7 +33,7 @@ namespace {
     R recv_;
 
     friend void tag_invoke(ex::start_t, op_state& self) noexcept {
-      ex::set_value((R&&) self.recv_, (int) self.val_);
+      ex::set_value(static_cast<R&&>(self.recv_), static_cast<int>(self.val_));
     }
   };
 
@@ -45,11 +45,7 @@ namespace {
 
     template <class R>
     friend op_state<R> tag_invoke(ex::connect_t, my_sender&& s, R&& r) {
-      return {{}, s.value_, (R&&) r};
-    }
-
-    friend empty_env tag_invoke(ex::get_env_t, const my_sender&) noexcept {
-      return {};
+      return {{}, s.value_, static_cast<R&&>(r)};
     }
   };
 
@@ -61,11 +57,7 @@ namespace {
 
     template <class R> // accept any type here
     friend op_state<R> tag_invoke(ex::connect_t, my_sender_unconstrained&& s, R&& r) {
-      return {{}, s.value_, (R&&) r};
-    }
-
-    friend empty_env tag_invoke(ex::get_env_t, const my_sender_unconstrained&) noexcept {
-      return {};
+      return {{}, s.value_, static_cast<R&&>(r)};
     }
   };
 
@@ -91,18 +83,14 @@ namespace {
       return {{}, 19, std::move(self)};
     }
 
-    friend inline void tag_invoke(ex::set_value_t, strange_receiver, int val) noexcept {
+    void set_value(int val) noexcept {
       REQUIRE(val == 19);
     }
 
-    friend void tag_invoke(ex::set_stopped_t, strange_receiver) noexcept {
+    void set_stopped() noexcept {
     }
 
-    friend void tag_invoke(ex::set_error_t, strange_receiver, std::exception_ptr) noexcept {
-    }
-
-    friend empty_env tag_invoke(ex::get_env_t, const strange_receiver&) noexcept {
-      return {};
+    void set_error(std::exception_ptr) noexcept {
     }
   };
 
@@ -117,6 +105,6 @@ namespace {
   TEST_CASE("tag types can be deduced from ex::connect", "[cpo][cpo_connect]") {
     static_assert(std::is_same_v<const ex::connect_t, decltype(ex::connect)>, "type mismatch");
   }
-}
+} // namespace
 
 STDEXEC_PRAGMA_POP()

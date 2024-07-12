@@ -159,9 +159,9 @@ namespace {
   TEST_CASE("on has the values_type corresponding to the given values", "[adaptors][on]") {
     inline_scheduler sched{};
 
-    check_val_types<type_array<type_array<int>>>(ex::on(sched, ex::just(1)));
-    check_val_types<type_array<type_array<int, double>>>(ex::on(sched, ex::just(3, 0.14)));
-    check_val_types<type_array<type_array<int, double, std::string>>>(
+    check_val_types<ex::__mset<pack<int>>>(ex::on(sched, ex::just(1)));
+    check_val_types<ex::__mset<pack<int, double>>>(ex::on(sched, ex::just(3, 0.14)));
+    check_val_types<ex::__mset<pack<int, double, std::string>>>(
       ex::on(sched, ex::just(3, 0.14, std::string{"pi"})));
   }
 
@@ -170,9 +170,9 @@ namespace {
     error_scheduler sched2{};
     error_scheduler<int> sched3{43};
 
-    check_err_types<type_array<std::exception_ptr>>(ex::on(sched1, ex::just(1)));
-    check_err_types<type_array<std::exception_ptr>>(ex::on(sched2, ex::just(2)));
-    check_err_types<type_array<std::exception_ptr, int>>(ex::on(sched3, ex::just(3)));
+    check_err_types<ex::__mset<>>(ex::on(sched1, ex::just(1)));
+    check_err_types<ex::__mset<std::exception_ptr>>(ex::on(sched2, ex::just(2)));
+    check_err_types<ex::__mset<int>>(ex::on(sched3, ex::just(3)));
   }
 
   TEST_CASE("on keeps sends_stopped from scheduler's sender", "[adaptors][on]") {
@@ -188,7 +188,7 @@ namespace {
   // Return a different sender when we invoke this custom defined on implementation
   using just_string_sender_t = decltype(ex::just(std::string{}));
 
-  auto tag_invoke(decltype(ex::on), inline_scheduler sched, just_string_sender_t) {
+  auto tag_invoke(decltype(ex::on), inline_scheduler, just_string_sender_t) {
     return ex::just(std::string{"Hello, world!"});
   }
 
@@ -238,7 +238,7 @@ namespace {
       R recv_;
 
       friend void tag_invoke(ex::start_t, oper& self) noexcept {
-        ex::set_value((R&&) self.recv_);
+        ex::set_value(static_cast<R&&>(self.recv_));
       }
     };
 
@@ -247,17 +247,16 @@ namespace {
       using completion_signatures = ex::completion_signatures<ex::set_value_t()>;
 
       template <typename R>
-      friend oper<R> tag_invoke(ex::connect_t, my_sender self, R&& r) {
-        return {{}, (R&&) r};
+      friend oper<R> tag_invoke(ex::connect_t, my_sender, R&& r) {
+        return {{}, static_cast<R&&>(r)};
       }
 
-      friend auto tag_invoke(ex::get_env_t, const my_sender&) noexcept
-        -> scheduler_env<move_checking_inline_scheduler> {
+      auto get_env() const noexcept -> scheduler_env<move_checking_inline_scheduler> {
         return {};
       }
     };
 
-    friend my_sender tag_invoke(ex::schedule_t, move_checking_inline_scheduler) {
+    my_sender schedule() const noexcept {
       return {};
     }
 
@@ -280,5 +279,5 @@ namespace {
                         | ex::then([] {});
     ex::sync_wait(std::move(snd));
   }
-}
+} // namespace
 STDEXEC_PRAGMA_POP()

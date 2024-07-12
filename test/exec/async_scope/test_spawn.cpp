@@ -25,14 +25,9 @@ namespace {
     };
 
     template <class Receiver>
-    friend auto tag_invoke(ex::connect_t, throwing_sender&& self, Receiver&& rcvr)
+    friend auto tag_invoke(ex::connect_t, throwing_sender&&, Receiver&&)
       -> operation<std::decay_t<Receiver>> {
       throw std::logic_error("cannot connect");
-      return {std::forward<Receiver>(rcvr)};
-    }
-
-    friend empty_env tag_invoke(stdexec::get_env_t, const throwing_sender&) noexcept {
-      return {};
     }
   };
 
@@ -233,4 +228,4 @@ namespace {
     // TODO: reenable this
     // REQUIRE(P2519::__scope::empty(scope));
   }
-}
+} // namespace

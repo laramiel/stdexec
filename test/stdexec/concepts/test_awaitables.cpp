@@ -24,7 +24,7 @@
 
 #include <test_common/type_helpers.hpp>
 
-#if !STDEXEC_STD_NO_COROUTINES_
+#if !STDEXEC_STD_NO_COROUTINES()
 
 namespace ex = stdexec;
 
@@ -137,8 +137,7 @@ namespace {
     static_assert(sender_with_env<awaitable_sender_1<Awaiter>>);
     static_assert(ex::__awaitable<awaitable_sender_1<Awaiter>>);
 
-    static_assert(!ex::__get_completion_signatures::
-                    __with_member_alias<awaitable_sender_1<Awaiter>, ex::empty_env>);
+    static_assert(!ex::__sigs::__with_member_alias<awaitable_sender_1<Awaiter>>);
     static_assert(
       std::is_same_v<ex::completion_signatures_of_t<awaitable_sender_1<Awaiter>>, Signatures>);
   }
@@ -151,8 +150,7 @@ namespace {
     static_assert(!ex::__awaitable<awaitable_sender_2>);
     static_assert(ex::__awaitable<awaitable_sender_2, promise<__coro::suspend_always>>);
 
-    static_assert(
-      !ex::__get_completion_signatures::__with_member_alias<awaitable_sender_2, ex::empty_env>);
+    static_assert(!ex::__sigs::__with_member_alias<awaitable_sender_2>);
   }
 
   void test_awaitable_sender3() {
@@ -164,8 +162,7 @@ namespace {
     static_assert(!ex::__awaitable<awaitable_sender_3>);
     static_assert(ex::__awaitable<awaitable_sender_3, promise<awaiter>>);
 
-    static_assert(
-      !ex::__get_completion_signatures::__with_member_alias<awaitable_sender_3, ex::empty_env>);
+    static_assert(!ex::__sigs::__with_member_alias<awaitable_sender_3>);
   }
 
   template <class Signatures>
@@ -179,15 +176,12 @@ namespace {
     static_assert(ex::__awaitable<awaitable_sender_4, promise<awaiter>>);
     static_assert(ex::__awaitable<awaitable_sender_4, ex::__env::__promise<ex::empty_env>>);
 
-    static_assert(
-      !ex::__get_completion_signatures::__with_member_alias<awaitable_sender_4, ex::empty_env>);
+    static_assert(!ex::__sigs::__with_member_alias<awaitable_sender_4>);
+
+    static_assert(!ex::__sigs::__with_member_alias<awaitable_sender_4>);
 
     static_assert(
-      !ex::__get_completion_signatures::__with_member_alias<awaitable_sender_4, ex::empty_env>);
-
-    static_assert(
-      std::
-        is_same_v< ex::completion_signatures_of_t<awaitable_sender_4, ex::empty_env>, Signatures>);
+      std::is_same_v<ex::completion_signatures_of_t<awaitable_sender_4, ex::empty_env>, Signatures>);
   }
 
   struct connect_awaitable_promise : ex::with_awaitable_senders<connect_awaitable_promise> { };
@@ -196,6 +190,7 @@ namespace {
   void test_awaitable_sender5(Signatures*) {
     static_assert(ex::sender<awaitable_sender_5>);
     static_assert(sender_with_env<awaitable_sender_5>);
+    static_assert(!ex::sender_in<awaitable_sender_5>);
     static_assert(ex::sender_in<awaitable_sender_5, ex::empty_env>);
 
     static_assert(ex::__awaiter<awaiter>);
@@ -203,10 +198,8 @@ namespace {
     static_assert(ex::__awaitable<awaitable_sender_5, promise<awaiter>>);
     static_assert(ex::__awaitable<awaitable_sender_5, ex::__env::__promise<ex::empty_env>>);
 
-    static_assert(
-      !ex::__get_completion_signatures::__with_member_alias<awaitable_sender_5, ex::empty_env>);
+    static_assert(!ex::__sigs::__with_member_alias<awaitable_sender_5>);
 
-    static_assert(std::is_same_v<ex::completion_signatures_of_t<awaitable_sender_5>, Signatures>);
     static_assert(
       std::is_same_v<ex::completion_signatures_of_t<awaitable_sender_5, ex::empty_env>, Signatures>);
   }
@@ -218,8 +211,7 @@ namespace {
   }
 
   TEST_CASE("get completion_signatures for awaitables", "[sndtraits][awaitables]") {
-    ::test_awaitable_sender1(
-      signature_error_values(std::exception_ptr()), __coro::suspend_always{});
+    ::test_awaitable_sender1(signature_error_values(std::exception_ptr()), __coro::suspend_always{});
     ::test_awaitable_sender1(
       signature_error_values(
         std::exception_ptr(), ex::__await_result_t<awaitable_sender_1<awaiter>>()),
@@ -242,7 +234,7 @@ namespace {
   struct awaitable_with_get_env {
     Awaiter operator co_await();
 
-    friend awaitable_env tag_invoke(ex::get_env_t, const awaitable_with_get_env&) noexcept {
+    awaitable_env get_env() const noexcept {
       return {};
     }
   };
@@ -263,6 +255,6 @@ namespace {
     using _Promise = ex::__env::__promise<ex::empty_env>;
     static_assert(!ex::__awaitable<_Awaitable, _Promise>);
   }
-}
+} // namespace
 
-#endif // !STDEXEC_STD_NO_COROUTINES_
+#endif // STDEXEC_STD_NO_COROUTINES()

@@ -33,16 +33,14 @@ namespace {
       ex::set_stopped_t()>;
 
     bool from_scheduler_{false};
-
-    friend empty_env tag_invoke(ex::get_env_t, const my_sender&) noexcept {
-      return {};
-    }
   };
 
   struct my_scheduler {
-    friend my_sender tag_invoke(ex::schedule_t, my_scheduler) {
+    my_sender schedule() const noexcept {
       return my_sender{true};
     }
+
+    bool operator==(const my_scheduler&) const noexcept = default;
   };
 
   TEST_CASE("can call schedule on an appropriate type", "[cpo][cpo_schedule]") {
@@ -55,6 +53,6 @@ namespace {
   TEST_CASE("tag types can be deduced from ex::schedule", "[cpo][cpo_schedule]") {
     static_assert(std::is_same_v<const ex::schedule_t, decltype(ex::schedule)>, "type mismatch");
   }
-}
+} // namespace
 
 STDEXEC_PRAGMA_POP()

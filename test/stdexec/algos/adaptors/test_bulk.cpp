@@ -43,28 +43,27 @@ namespace {
   };
 
   TEST_CASE("bulk returns a sender", "[adaptors][bulk]") {
-    auto snd = ex::bulk(ex::just(19), 8, [](int idx, int val) {});
+    auto snd = ex::bulk(ex::just(19), 8, [](int, int) {});
     static_assert(ex::sender<decltype(snd)>);
     (void) snd;
   }
 
   TEST_CASE("bulk with environment returns a sender", "[adaptors][bulk]") {
-    auto snd = ex::bulk(ex::just(19), 8, [](int idx, int val) {});
+    auto snd = ex::bulk(ex::just(19), 8, [](int, int) {});
     static_assert(ex::sender_in<decltype(snd), empty_env>);
     (void) snd;
   }
 
   TEST_CASE("bulk can be piped", "[adaptors][bulk]") {
-    ex::sender auto snd = ex::just() | ex::bulk(42, [](int i) {});
+    ex::sender auto snd = ex::just() | ex::bulk(42, [](int) {});
     (void) snd;
   }
 
   TEST_CASE("bulk keeps values_type from input sender", "[adaptors][bulk]") {
     constexpr int n = 42;
-    check_val_types<type_array<type_array<>>>(ex::just() | ex::bulk(n, [](int) {}));
-    check_val_types<type_array<type_array<double>>>(
-      ex::just(4.2) | ex::bulk(n, [](int, double) {}));
-    check_val_types<type_array<type_array<double, std::string>>>(
+    check_val_types<ex::__mset<pack<>>>(ex::just() | ex::bulk(n, [](int) {}));
+    check_val_types<ex::__mset<pack<double>>>(ex::just(4.2) | ex::bulk(n, [](int, double) {}));
+    check_val_types<ex::__mset<pack<double, std::string>>>(
       ex::just(4.2, std::string{}) | ex::bulk(n, [](int, double, std::string) {}));
   }
 
@@ -74,15 +73,15 @@ namespace {
     error_scheduler sched2{};
     error_scheduler<int> sched3{43};
 
-    check_err_types<type_array<>>( //
+    check_err_types<ex::__mset<>>( //
       ex::transfer_just(sched1) | ex::bulk(n, [](int) noexcept {}));
-    check_err_types<type_array<std::exception_ptr>>( //
+    check_err_types<ex::__mset<std::exception_ptr>>( //
       ex::transfer_just(sched2) | ex::bulk(n, [](int) noexcept {}));
-    check_err_types<type_array<int>>( //
+    check_err_types<ex::__mset<int>>( //
       ex::just_error(n) | ex::bulk(n, [](int) noexcept {}));
-    check_err_types<type_array<int>>( //
+    check_err_types<ex::__mset<int>>( //
       ex::transfer_just(sched3) | ex::bulk(n, [](int) noexcept {}));
-    check_err_types<type_array<std::exception_ptr, int>>( //
+    check_err_types<ex::__mset<std::exception_ptr, int>>( //
       ex::transfer_just(sched3) | ex::bulk(n, [](int) { throw std::logic_error{"err"}; }));
   }
 
@@ -152,8 +151,9 @@ namespace {
     std::vector<int> vals_expected(n);
     std::iota(vals_expected.begin(), vals_expected.end(), 0);
 
-    auto snd = ex::just(std::move(vals)) //
-             | ex::bulk(n, [&](std::size_t i, std::vector<int>& vals) { vals[i] = (int) i; });
+    auto snd =
+      ex::just(std::move(vals)) //
+      | ex::bulk(n, [&](std::size_t i, std::vector<int>& vals) { vals[i] = static_cast<int>(i); });
     auto op = ex::connect(std::move(snd), expect_value_receiver{vals_expected});
     ex::start(op);
   }
@@ -163,7 +163,7 @@ namespace {
     constexpr int n = 2;
 
     auto snd = ex::just(magic_number)
-             | ex::bulk(n, [](int i, int) { return function_object_t<int>{nullptr}; });
+             | ex::bulk(n, [](int, int) { return function_object_t<int>{nullptr}; });
 
     auto op = ex::connect(std::move(snd), expect_value_receiver{magic_number});
     ex::start(op);
@@ -173,7 +173,7 @@ namespace {
     constexpr int n = 2;
 
     auto snd = ex::just() //
-             | ex::bulk(n, [](int i) -> int { throw std::logic_error{"err"}; });
+             | ex::bulk(n, [](int) -> int { throw std::logic_error{"err"}; });
     auto op = ex::connect(std::move(snd), expect_error_receiver{});
     ex::start(op);
   }
@@ -209,7 +209,8 @@ namespace {
                  | ex::bulk(n, [&counter](std::size_t idx) { counter[idx]++; });
         stdexec::sync_wait(std::move(snd));
 
-        const std::size_t actual = (std::size_t) std::count(counter.begin(), counter.end(), 1);
+        const std::size_t actual =
+          static_cast<std::size_t>(std::count(counter.begin(), counter.end(), 1));
         const std::size_t expected = n;
 
         CHECK(expected == actual);
@@ -237,7 +238,8 @@ namespace {
 
         CHECK(val == 42);
 
-        const std::size_t actual = (std::size_t) std::count(counter.begin(), counter.end(), 1);
+        const std::size_t actual =
+          static_cast<std::size_t>(std::count(counter.begin(), counter.end(), 1));
         const std::size_t expected = n;
 
         CHECK(expected == actual);
@@ -252,7 +254,8 @@ namespace {
 
         auto snd =
           ex::transfer_just(sch, std::move(vals))
-          | ex::bulk(n, [](std::size_t idx, std::vector<int>& vals) { vals[idx] = (int) idx; })
+          | ex::bulk(
+            n, [](std::size_t idx, std::vector<int>& vals) { vals[idx] = static_cast<int>(idx); })
           | ex::bulk(n, [](std::size_t idx, std::vector<int>& vals) { ++vals[idx]; });
         auto [vals_actual] = stdexec::sync_wait(std::move(snd)).value();
 
@@ -263,7 +266,7 @@ namespace {
     SECTION("With exception") {
       constexpr int n = 9;
       auto snd = ex::transfer_just(sch)
-               | ex::bulk(n, [](int idx) { throw std::runtime_error("bulk"); });
+               | ex::bulk(n, [](int) { throw std::runtime_error("bulk"); });
 
       CHECK_THROWS_AS(stdexec::sync_wait(std::move(snd)), std::runtime_error);
     }
@@ -279,8 +282,8 @@ namespace {
 
       stdexec::sync_wait(std::move(snd));
 
-      CHECK(std::count(counters_1.begin(), counters_1.end(), 1) == (int) n);
-      CHECK(std::count(counters_2.begin(), counters_2.end(), 1) == (int) n);
+      CHECK(std::count(counters_1.begin(), counters_1.end(), 1) == static_cast<int>(n));
+      CHECK(std::count(counters_2.begin(), counters_2.end(), 1) == static_cast<int>(n));
     }
   }
 
@@ -302,7 +305,8 @@ namespace {
       stdexec::sync_wait(std::move(snd));
 
       // All the work should not have run on the same thread
-      const std::size_t actual = (std::size_t) std::count(tids.begin(), tids.end(), tids[0]);
+      const std::size_t actual =
+        static_cast<std::size_t>(std::count(tids.begin(), tids.end(), tids[0]));
       const std::size_t wrong = tids.size();
 
       CHECK(actual != wrong);
@@ -326,10 +330,11 @@ namespace {
       stdexec::sync_wait(stdexec::on(sch, std::move(snd)));
 
       // All the work should not have run on the same thread
-      const std::size_t actual = (std::size_t) std::count(tids.begin(), tids.end(), tids[0]);
+      const std::size_t actual =
+        static_cast<std::size_t>(std::count(tids.begin(), tids.end(), tids[0]));
       const std::size_t wrong = tids.size();
 
       CHECK(actual != wrong);
     }
   }
-}
+} // namespace

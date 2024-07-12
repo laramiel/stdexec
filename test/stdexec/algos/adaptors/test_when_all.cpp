@@ -237,62 +237,60 @@ namespace {
   TEST_CASE(
     "when_all has the values_type based on the children, decayed and as rvalue references",
     "[adaptors][when_all]") {
-    check_val_types<type_array<type_array<int&&>>>(ex::when_all(ex::just(13)));
-    check_val_types<type_array<type_array<double&&>>>(ex::when_all(ex::just(3.14)));
-    check_val_types<type_array<type_array<int&&, double&&>>>(ex::when_all(ex::just(3, 0.14)));
+    check_val_types<ex::__mset<pack<int>>>(ex::when_all(ex::just(13)));
+    check_val_types<ex::__mset<pack<double>>>(ex::when_all(ex::just(3.14)));
+    check_val_types<ex::__mset<pack<int, double>>>(ex::when_all(ex::just(3, 0.14)));
 
-    check_val_types<type_array<type_array<>>>(ex::when_all(ex::just()));
+    check_val_types<ex::__mset<pack<>>>(ex::when_all(ex::just()));
 
-    check_val_types<type_array<type_array<int&&, double&&>>>(
-      ex::when_all(ex::just(3), ex::just(0.14)));
-    check_val_types<type_array<type_array<int&&, double&&, int&&, double&&>>>( //
-      ex::when_all(                                                            //
-        ex::just(3),                                                           //
-        ex::just(0.14),                                                        //
-        ex::just(1, 0.4142)                                                    //
-        )                                                                      //
+    check_val_types<ex::__mset<pack<int, double>>>(ex::when_all(ex::just(3), ex::just(0.14)));
+    check_val_types<ex::__mset<pack<int, double, int, double>>>( //
+      ex::when_all(                                              //
+        ex::just(3),                                             //
+        ex::just(0.14),                                          //
+        ex::just(1, 0.4142)                                      //
+        )                                                        //
     );
 
     // if one child returns void, then the value is simply missing
-    check_val_types<type_array<type_array<int&&, double&&>>>( //
-      ex::when_all(                                           //
-        ex::just(3),                                          //
-        ex::just(),                                           //
-        ex::just(0.14)                                        //
-        )                                                     //
+    check_val_types<ex::__mset<pack<int, double>>>( //
+      ex::when_all(                                 //
+        ex::just(3),                                //
+        ex::just(),                                 //
+        ex::just(0.14)                              //
+        )                                           //
     );
 
     // if children send references, they get decayed
-    check_val_types<type_array<type_array<int&&, double&&>>>( //
-      ex::when_all(                                           //
-        ex::split(ex::just(3)),                               //
-        ex::split(ex::just(0.14))                             //
-        )                                                     //
+    check_val_types<ex::__mset<pack<int, double>>>( //
+      ex::when_all(                                 //
+        ex::split(ex::just(3)),                     //
+        ex::split(ex::just(0.14))                   //
+        )                                           //
     );
   }
 
   TEST_CASE("when_all has the error_types based on the children", "[adaptors][when_all]") {
-    check_err_types<type_array<int&&>>(ex::when_all(ex::just_error(13)));
-    check_err_types<type_array<double&&>>(ex::when_all(ex::just_error(3.14)));
+    check_err_types<ex::__mset<int>>(ex::when_all(ex::just_error(13)));
+    check_err_types<ex::__mset<double>>(ex::when_all(ex::just_error(3.14)));
 
-    check_err_types<type_array<>>(ex::when_all(ex::just()));
+    check_err_types<ex::__mset<>>(ex::when_all(ex::just()));
 
-    check_err_types<type_array<int&&, double&&>>(
-      ex::when_all(ex::just_error(3), ex::just_error(0.14)));
-    check_err_types<type_array<int&&, double&&, std::string&&>>( //
-      ex::when_all(                                              //
-        ex::just_error(3),                                       //
-        ex::just_error(0.14),                                    //
-        ex::just_error(std::string{"err"})                       //
-        )                                                        //
+    check_err_types<ex::__mset<int, double>>(ex::when_all(ex::just_error(3), ex::just_error(0.14)));
+    check_err_types<ex::__mset<int, double, std::string>>( //
+      ex::when_all(                                        //
+        ex::just_error(3),                                 //
+        ex::just_error(0.14),                              //
+        ex::just_error(std::string{"err"})                 //
+        )                                                  //
     );
 
-    check_err_types<type_array<std::exception_ptr&&>>( //
-      ex::when_all(                                    //
-        ex::just(13),                                  //
-        ex::just_error(std::exception_ptr{}),          //
-        ex::just_stopped()                             //
-        )                                              //
+    check_err_types<ex::__mset<std::exception_ptr>>( //
+      ex::when_all(                                  //
+        ex::just(13),                                //
+        ex::just_error(std::exception_ptr{}),        //
+        ex::just_stopped()                           //
+        )                                            //
     );
   }
 
@@ -394,7 +392,7 @@ namespace {
     struct basic_domain {
       template <ex::sender_expr_for<Tag> Sender, class... Env>
         requires(sizeof...(Env) == C)
-      auto transform_sender(Sender&& sender, const Env&...) const {
+      auto transform_sender(Sender&&, const Env&...) const {
         return Fun();
       }
     };
@@ -528,4 +526,4 @@ namespace {
       wait_for_value(std::move(snd), std::string{"hello world"});
     }
   }
-}
+} // namespace

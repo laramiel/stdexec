@@ -28,7 +28,7 @@ namespace {
   template <class Scheduler>
   struct default_env {
     template <typename CPO>
-    friend Scheduler tag_invoke(ex::get_completion_scheduler_t<CPO>, const default_env&) {
+    Scheduler query(ex::get_completion_scheduler_t<CPO>) const noexcept {
       return {};
     }
   };
@@ -41,12 +41,12 @@ namespace {
         ex::set_error_t(std::exception_ptr),                   //
         ex::set_stopped_t()>;
 
-      friend default_env<my_scheduler> tag_invoke(ex::get_env_t, const my_sender&) noexcept {
+      default_env<my_scheduler> get_env() const noexcept {
         return {};
       }
     };
 
-    friend my_sender tag_invoke(ex::schedule_t, my_scheduler) {
+    my_sender schedule() const {
       return {};
     }
 
@@ -81,12 +81,12 @@ namespace {
         ex::set_error_t(std::exception_ptr),                   //
         ex::set_stopped_t()>;
 
-      friend default_env<my_scheduler_except> tag_invoke(ex::get_env_t, const my_sender&) noexcept {
+      default_env<my_scheduler_except> get_env() const noexcept {
         return {};
       }
     };
 
-    friend my_sender tag_invoke(ex::schedule_t, my_scheduler_except) {
+    my_sender schedule() const {
       throw std::logic_error("err");
       return {};
     }
@@ -112,12 +112,12 @@ namespace {
         ex::set_error_t(std::exception_ptr),                   //
         ex::set_stopped_t()>;
 
-      friend default_env<noeq_sched> tag_invoke(ex::get_env_t, const my_sender&) noexcept {
+      default_env<noeq_sched> get_env() const noexcept {
         return {};
       }
     };
 
-    friend my_sender tag_invoke(ex::schedule_t, noeq_sched) {
+    my_sender schedule() const {
       return {};
     }
   };
@@ -142,12 +142,12 @@ namespace {
         }
       };
 
-      friend env tag_invoke(ex::get_env_t, const my_sender&) noexcept {
+      env get_env() const noexcept {
         return {};
       }
     };
 
-    friend my_sender tag_invoke(ex::schedule_t, sched_no_completion) {
+    my_sender schedule() const {
       return {};
     }
 
@@ -165,6 +165,6 @@ namespace {
     "[concepts][scheduler]") {
     REQUIRE(!ex::scheduler<sched_no_completion>);
   }
-}
+} // namespace
 
 STDEXEC_PRAGMA_POP()

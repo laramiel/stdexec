@@ -30,7 +30,8 @@ namespace {
     using completion_signatures = ex::completion_signatures<Sigs...>;
 
     struct operation {
-      friend void tag_invoke(ex::start_t, operation&) noexcept {}
+      friend void tag_invoke(ex::start_t, operation&) noexcept {
+      }
     };
 
     template <class Receiver>
@@ -67,10 +68,6 @@ namespace {
       -> operation<std::decay_t<Receiver>> {
       return {{}, std::move(self.values_), std::forward<Receiver>(rcvr)};
     }
-
-    friend empty_env tag_invoke(ex::get_env_t, const fallible_just&) noexcept {
-      return {};
-    }
   };
 
   template <class... Values>
@@ -105,8 +102,8 @@ namespace {
       return {{}, std::move(self.values_), std::forward<Receiver>(rcvr)};
     }
 
-    friend Env tag_invoke(ex::get_env_t, const just_with_env& self) noexcept {
-      return self.env_;
+    Env get_env() const noexcept {
+      return env_;
     }
   };
 
@@ -170,9 +167,5 @@ namespace {
       -> operation<std::decay_t<Receiver>> {
       return {self.condition_, std::forward<Receiver>(rcvr)};
     }
-
-    friend empty_env tag_invoke(ex::get_env_t, const completes_if&) noexcept {
-      return {};
-    }
   };
-}
+} // namespace

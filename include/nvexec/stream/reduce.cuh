@@ -27,17 +27,16 @@
 #include "common.cuh"
 #include "../detail/throw_on_cuda_error.cuh"
 
+STDEXEC_PRAGMA_PUSH()
+STDEXEC_PRAGMA_IGNORE_GNU("-Wmissing-braces")
+
 namespace nvexec {
   namespace STDEXEC_STREAM_DETAIL_NS {
     namespace reduce_ {
       template <class SenderId, class ReceiverId, class InitT, class Fun>
       struct receiver_t
-        : public __algo_range_init_fun::receiver_t<
-            SenderId,
-            ReceiverId,
-            InitT,
-            Fun,
-            receiver_t<SenderId, ReceiverId, InitT, Fun>> {
+        : public __algo_range_init_fun::
+            receiver_t<SenderId, ReceiverId, InitT, Fun, receiver_t<SenderId, ReceiverId, InitT, Fun>> {
         using base = __algo_range_init_fun::
           receiver_t<SenderId, ReceiverId, InitT, Fun, receiver_t<SenderId, ReceiverId, InitT, Fun>>;
 
@@ -118,42 +117,47 @@ namespace nvexec {
             sender_t<SenderId, InitT, Fun, sender_t<SenderId, InitT, Fun>> {
         template <class Receiver>
         using receiver_t =
-          stdexec::__t<reduce_::receiver_t< SenderId, stdexec::__id<Receiver>, InitT, Fun>>;
+          stdexec::__t<reduce_::receiver_t<SenderId, stdexec::__id<Receiver>, InitT, Fun>>;
 
         template <class Range>
         using _set_value_t = completion_signatures<set_value_t(
           ::std::add_lvalue_reference_t<
             typename __algo_range_init_fun::binary_invoke_result_t<Range, InitT, Fun>>)>;
       };
-    }
+    } // namespace reduce_
 
     struct reduce_t {
       template <class Sender, class InitT, class Fun>
       using __sender =
         stdexec::__t<reduce_::sender_t<stdexec::__id<__decay_t<Sender>>, InitT, Fun>>;
 
-      template < sender Sender, __movable_value InitT, __movable_value Fun = cub::Sum>
+      template <sender Sender, __movable_value InitT, __movable_value Fun = cub::Sum>
       __sender<Sender, InitT, Fun> operator()(Sender&& sndr, InitT init, Fun fun) const {
-        return __sender<Sender, InitT, Fun>{{}, (Sender&&) sndr, (InitT&&) init, (Fun&&) fun};
+        return __sender<Sender, InitT, Fun>{
+          {}, static_cast<Sender&&>(sndr), static_cast<InitT&&>(init), static_cast<Fun&&>(fun)};
       }
 
       template <class InitT, class Fun = cub::Sum>
-      __binder_back<reduce_t, InitT, Fun> operator()(InitT init, Fun fun = {}) const {
+      STDEXEC_ATTRIBUTE((always_inline))
+      auto
+        operator()(InitT init, Fun fun = {}) const -> __binder_back<reduce_t, InitT, Fun> {
         return {
+          {static_cast<InitT&&>(init), static_cast<Fun&&>(fun)},
           {},
-          {},
-          {(InitT&&) init, (Fun&&) fun}
+          {}
         };
       }
     };
-  }
+  } // namespace STDEXEC_STREAM_DETAIL_NS
 
   inline constexpr STDEXEC_STREAM_DETAIL_NS::reduce_t reduce{};
-}
+} // namespace nvexec
 
 namespace stdexec::__detail {
   template <class SenderId, class Init, class Fun>
   extern __mconst<
     nvexec::STDEXEC_STREAM_DETAIL_NS::reduce_::sender_t<__name_of<__t<SenderId>>, Init, Fun>>
     __name_of_v<nvexec::STDEXEC_STREAM_DETAIL_NS::reduce_::sender_t<SenderId, Init, Fun>>;
-}
+} // namespace stdexec::__detail
+
+STDEXEC_PRAGMA_POP()

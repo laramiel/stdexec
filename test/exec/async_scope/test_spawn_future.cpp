@@ -36,14 +36,9 @@ namespace {
     };
 
     template <class Receiver>
-    friend auto tag_invoke(ex::connect_t, throwing_sender&& self, Receiver&& rcvr)
+    friend auto tag_invoke(ex::connect_t, throwing_sender&&, Receiver&&)
       -> operation<std::decay_t<Receiver>> {
       throw std::logic_error("cannot connect");
-      return {std::forward<Receiver>(rcvr)};
-    }
-
-    friend empty_env tag_invoke(stdexec::get_env_t, const throwing_sender&) noexcept {
-      return {};
     }
   };
 
@@ -54,8 +49,8 @@ namespace {
 
     // Non-blocking call
     {
-      ex::sender auto snd = scope.spawn_future(
-        ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
+      ex::sender auto snd =
+        scope.spawn_future(ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
       (void) snd;
     }
     REQUIRE_FALSE(executed);
@@ -73,8 +68,8 @@ namespace {
     async_scope scope;
 
     // Non-blocking call
-    ex::sender auto snd = scope.spawn_future(
-      ex::on(sch, ex::just() | ex::then([&] { executed1 = true; })));
+    ex::sender auto snd =
+      scope.spawn_future(ex::on(sch, ex::just() | ex::then([&] { executed1 = true; })));
     auto op = ex::connect(std::move(snd), expect_void_receiver_ex{executed2});
     ex::start(op);
     REQUIRE_FALSE(executed1);
@@ -95,8 +90,8 @@ namespace {
     async_scope scope;
 
     // Non-blocking call
-    ex::sender auto snd = scope.spawn_future(
-      ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
+    ex::sender auto snd =
+      scope.spawn_future(ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
     ex::sender auto snd2 = std::move(snd) | ex::then([&] { REQUIRE(executed); });
     // Execute the given work
     sch.start_next();
@@ -128,8 +123,8 @@ namespace {
 
     // Non-blocking call; simply ignore the returned sender
     {
-      ex::sender auto snd = scope.spawn_future(
-        ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
+      ex::sender auto snd =
+        scope.spawn_future(ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
       (void) snd;
     }
     REQUIRE_FALSE(executed);
@@ -148,8 +143,8 @@ namespace {
     async_scope scope;
 
     // Non-blocking call; simply ignore the returned sender
-    ex::sender auto snd = scope.spawn_future(
-      ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
+    ex::sender auto snd =
+      scope.spawn_future(ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
     auto op = ex::connect(std::move(snd), expect_void_receiver_ex{executed2});
     REQUIRE_FALSE(executed);
     REQUIRE_FALSE(executed2);
@@ -182,8 +177,8 @@ namespace {
     bool executed2{false};
     async_scope scope;
 
-    ex::sender auto snd = scope.spawn_future(
-      ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
+    ex::sender auto snd =
+      scope.spawn_future(ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
     REQUIRE_FALSE(executed);
     // Execute the work given to spawn_future
     sch.start_next();
@@ -201,8 +196,9 @@ namespace {
     "[async_scope][spawn_future]") {
     async_scope scope;
     try {
-      ex::sender auto snd = scope.spawn_future(
-        throwing_sender{} | ex::then([&] { FAIL("work should not be executed"); }));
+      ex::sender auto snd = scope.spawn_future(throwing_sender{} | ex::then([&] {
+                                                 FAIL("work should not be executed");
+                                               }));
       (void) snd;
       FAIL("Exceptions should have been thrown");
     } catch (const std::logic_error& e) {
@@ -227,8 +223,8 @@ namespace {
 
     // Non-blocking call
     {
-      ex::sender auto snd = scope.spawn_future(
-        ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
+      ex::sender auto snd =
+        scope.spawn_future(ex::on(sch, ex::just() | ex::then([&] { executed = true; })));
       (void) snd;
     }
     REQUIRE_FALSE(executed);

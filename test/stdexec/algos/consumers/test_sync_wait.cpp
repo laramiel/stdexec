@@ -119,7 +119,7 @@ namespace {
   TEST_CASE("sync_wait doesn't accept multi-variant senders", "[consumers][sync_wait]") {
     ex::sender auto snd = fallible_just{13} //
                         | ex::let_error(always(ex::just(std::string{"err"})));
-    check_val_types<type_array<type_array<int>, type_array<std::string>>>(snd);
+    check_val_types<ex::__mset<pack<int>, pack<std::string>>>(snd);
     static_assert(!std::invocable<decltype(sync_wait), decltype(snd)>);
   }
 
@@ -127,7 +127,7 @@ namespace {
     "sync_wait_with_variant accepts multi-variant senders",
     "[consumers][sync_wait_with_variant]") {
     ex::sender auto snd = fallible_just{13} | ex::let_error(always(ex::just(std::string{"err"})));
-    check_val_types<type_array<type_array<int>, type_array<std::string>>>(snd);
+    check_val_types<ex::__mset<pack<int>, pack<std::string>>>(snd);
     static_assert(std::invocable<decltype(sync_wait_with_variant), decltype(snd)>);
 
     std::optional<std::tuple<std::variant<std::tuple<int>, std::tuple<std::string>>>> res =
@@ -141,7 +141,7 @@ namespace {
     "sync_wait_with_variant accepts single-value senders",
     "[consumers][sync_wait_with_variant]") {
     ex::sender auto snd = ex::just(13);
-    check_val_types<type_array<type_array<int>>>(snd);
+    check_val_types<ex::__mset<pack<int>>>(snd);
     static_assert(std::invocable<decltype(sync_wait_with_variant), decltype(snd)>);
 
     std::optional<std::tuple<std::variant<std::tuple<int>>>> res = sync_wait_with_variant(snd);
@@ -203,7 +203,7 @@ namespace {
   using my_string_sender_t = decltype(ex::transfer_just(inline_scheduler{}, std::string{}));
 
   optional<tuple<std::string>>
-    tag_invoke(decltype(sync_wait), inline_scheduler sched, my_string_sender_t&& s) {
+    tag_invoke(decltype(sync_wait), inline_scheduler, my_string_sender_t&& s) {
     std::string res;
     auto op = ex::connect(std::move(s), expect_value_receiver_ex{res});
     ex::start(op);
@@ -268,10 +268,6 @@ namespace {
     friend auto tag_invoke(ex::connect_t, const my_multi_value_sender_t& self, Recv&& recv) {
       return ex::connect(ex::just(self.str_), std::forward<Recv>(recv));
     }
-
-    friend empty_env tag_invoke(ex::get_env_t, const my_multi_value_sender_t&) noexcept {
-      return {};
-    }
   };
 
   using my_transfered_multi_value_sender_t =
@@ -279,7 +275,7 @@ namespace {
 
   optional<std::variant<std::tuple<std::string>, std::tuple<int>>> tag_invoke(
     decltype(sync_wait_with_variant),
-    inline_scheduler sched,
+    inline_scheduler,
     my_transfered_multi_value_sender_t&& s) {
     std::string res;
     auto op = ex::connect(std::move(s), expect_value_receiver_ex{res});
@@ -302,8 +298,8 @@ namespace {
     // The customization will return a different value
     auto snd = ex::transfer(my_multi_value_sender_t{"hello_multi"}, inline_scheduler{});
     auto snd2 = ex::transfer_just(inline_scheduler{}, std::string{"hello"});
-    optional<std::variant<std::tuple<std::string>, std::tuple<int>>> res = sync_wait_with_variant(
-      std::move(snd));
+    optional<std::variant<std::tuple<std::string>, std::tuple<int>>> res =
+      sync_wait_with_variant(std::move(snd));
     CHECK(res.has_value());
     CHECK(std::get<0>(std::get<0>(res.value())) == std::string{"hallo_multi"});
   }
@@ -313,8 +309,8 @@ namespace {
     "[consumers][sync_wait_with_variant]") {
     // The customization will return a different value
     my_multi_value_sender_t snd{std::string{"hello_multi"}};
-    optional<std::variant<std::tuple<std::string>, std::tuple<int>>> res = sync_wait_with_variant(
-      std::move(snd));
+    optional<std::variant<std::tuple<std::string>, std::tuple<int>>> res =
+      sync_wait_with_variant(std::move(snd));
     CHECK(res.has_value());
     CHECK(std::get<0>(std::get<0>(res.value())) == std::string{"ciao_multi"});
   }
@@ -328,10 +324,7 @@ namespace {
     static_assert(
       std::is_same_v<
         std::tuple<>,
-        ex::value_types_of_t<
-          decltype(ex::just()),
-          ex::empty_env,
-          decayed_tuple,
-          std::type_identity_t>>);
+        ex::
+          value_types_of_t<decltype(ex::just()), ex::empty_env, decayed_tuple, std::type_identity_t>>);
   }
-}
+} // namespace

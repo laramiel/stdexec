@@ -28,6 +28,8 @@
 
 #include <atomic>
 #include <concepts>
+#include <exception>
+#include <type_traits>
 
 namespace exec {
   namespace __repeat_effect_until {
@@ -46,18 +48,28 @@ namespace exec {
         using receiver_concept = stdexec::receiver_t;
         __repeat_effect_state<_Sender, _Receiver> *__state_;
 
-        template <__completion_tag _Tag, class... _Args>
-        friend void tag_invoke(_Tag, __t &&__self, _Args &&...__args) noexcept {
-          __self.__state_->__complete(_Tag(), (_Args &&) __args...);
+        template <class... _Args>
+        void set_value(_Args &&...__args) noexcept {
+          __state_->__complete(set_value_t(), static_cast<_Args &&>(__args)...);
         }
 
-        friend env_of_t<_Receiver> tag_invoke(get_env_t, const __t &__self) noexcept {
-          return get_env(__self.__state_->__receiver());
+        template <class _Error>
+        void set_error(_Error &&__err) noexcept {
+          __state_->__complete(set_error_t(), static_cast<_Error &&>(__err));
+        }
+
+        void set_stopped() noexcept {
+          __state_->__complete(set_stopped_t());
+        }
+
+        auto get_env() const noexcept -> env_of_t<_Receiver> {
+          return stdexec::get_env(__state_->__receiver());
         }
       };
     };
 
     STDEXEC_PRAGMA_PUSH()
+
     STDEXEC_PRAGMA_IGNORE_GNU("-Wtsan")
 
     template <class _Sender, class _Receiver>
@@ -73,7 +85,7 @@ namespace exec {
       trampoline_scheduler __sched_;
 
       __repeat_effect_state(_Sender &&__sndr, _Receiver &)
-        : __child_(__sexpr_apply((_Sender &&) __sndr, stdexec::__detail::__get_data())) {
+        : __child_(__sexpr_apply(static_cast<_Sender &&>(__sndr), stdexec::__detail::__get_data())) {
         __connect();
       }
 
@@ -101,23 +113,24 @@ namespace exec {
       }
 
       template <class _Tag, class... _Args>
-      void __complete(_Tag, _Args &&...__args) noexcept {
-        __child_op_.__destroy();
+      void __complete(_Tag, _Args... __args) noexcept { // Intentionally by value...
+        __child_op_.__destroy(); // ... because this could potentially invalidate them.
         if constexpr (same_as<_Tag, set_value_t>) {
           // If the sender completed with true, we're done
           try {
             const bool __done = (static_cast<bool>(__args) && ...);
             if (__done) {
-              stdexec::set_value((_Receiver &&) this->__receiver());
+              stdexec::set_value(static_cast<_Receiver &&>(this->__receiver()));
             } else {
               __connect();
               stdexec::start(__child_op_.__get());
             }
           } catch (...) {
-            stdexec::set_error((_Receiver &&) this->__receiver(), std::current_exception());
+            stdexec::set_error(
+              static_cast<_Receiver &&>(this->__receiver()), std::current_exception());
           }
         } else {
-          _Tag()((_Receiver &&) this->__receiver(), (_Args &&) __args...);
+          _Tag()(static_cast<_Receiver &&>(this->__receiver()), static_cast<_Args &&>(__args)...);
         }
       }
     };
@@ -137,28 +150,33 @@ namespace exec {
         completion_signatures<>,
         __mexception<_INVALID_ARGUMENT_TO_REPEAT_EFFECT_UNTIL_<>, _WITH_SENDER_<_Sender>>>;
 
-    template <class _Sender, class _Env>
+    template <class _Error>
+    using __error_t = completion_signatures<set_error_t(__decay_t<_Error>)>;
+
+    template <class _Sender, class... _Env>
     using __completions_t = //
-      stdexec::__try_make_completion_signatures<
-        __decay_t<_Sender> &,
-        _Env,
-        stdexec::__try_make_completion_signatures<
-          stdexec::schedule_result_t<exec::trampoline_scheduler>,
-          _Env,
-          __with_exception_ptr>,
-        __mbind_front_q<__values_t, _Sender>>;
+      stdexec::transform_completion_signatures<
+        __completion_signatures_of_t<__decay_t<_Sender> &, _Env...>,
+        stdexec::transform_completion_signatures<
+          __completion_signatures_of_t<stdexec::schedule_result_t<exec::trampoline_scheduler>, _Env...>,
+          __eptr_completion,
+          __sigs::__default_set_value,
+          __error_t>,
+        __mbind_front_q<__values_t, _Sender>::template __f,
+        __error_t>;
 
     struct __repeat_effect_until_tag { };
 
     struct __repeat_effect_until_impl : __sexpr_defaults {
       static constexpr auto get_completion_signatures = //
-        []<class _Sender, class _Env>(_Sender &&, _Env &&) noexcept {
-          return __completions_t<__data_of<_Sender>, _Env>{};
-        };
+        []<class _Sender, class... _Env>(_Sender &&, _Env &&...) noexcept
+        -> __completions_t<__data_of<_Sender>, _Env...> {
+        return {};
+      };
 
       static constexpr auto get_state = //
         []<class _Sender, class _Receiver>(_Sender &&__sndr, _Receiver &__rcvr) {
-          return __repeat_effect_state{std::move(__sndr), __rcvr};
+          return __repeat_effect_state{static_cast<_Sender &&>(__sndr), __rcvr};
         };
 
       static constexpr auto start = //
@@ -172,17 +190,19 @@ namespace exec {
       auto operator()(_Sender &&__sndr) const {
         auto __domain = __get_early_domain(__sndr);
         return stdexec::transform_sender(
-          __domain, __make_sexpr<repeat_effect_until_t>({}, (_Sender &&) __sndr));
+          __domain, __make_sexpr<repeat_effect_until_t>({}, static_cast<_Sender &&>(__sndr)));
       }
 
-      constexpr auto operator()() const -> __binder_back<repeat_effect_until_t> {
+      STDEXEC_ATTRIBUTE((always_inline))
+      constexpr auto
+        operator()() const -> __binder_back<repeat_effect_until_t> {
         return {{}, {}, {}};
       }
 
       template <class _Sender>
       auto transform_sender(_Sender &&__sndr, __ignore) {
         return __sexpr_apply(
-          (_Sender &&) __sndr, []<class _Child>(__ignore, __ignore, _Child __child) {
+          static_cast<_Sender &&>(__sndr), []<class _Child>(__ignore, __ignore, _Child __child) {
             return __make_sexpr<__repeat_effect_until_tag>(std::move(__child));
           });
       }
@@ -196,5 +216,14 @@ namespace exec {
 namespace stdexec {
   template <>
   struct __sexpr_impl<exec::__repeat_effect_until::__repeat_effect_until_tag>
-    : exec::__repeat_effect_until::__repeat_effect_until_impl { };
-}
+    : exec::__repeat_effect_until::__repeat_effect_until_impl { }; // namespace stdexec
+
+  template <>
+  struct __sexpr_impl<exec::repeat_effect_until_t> : __sexpr_defaults {
+    static constexpr auto get_completion_signatures = //
+      []<class _Sender>(_Sender &&) noexcept          //
+        -> exec::__repeat_effect_until::__completions_t<__data_of<_Sender>> {
+      return {};
+    };
+  };
+} // namespace stdexec

@@ -33,8 +33,8 @@ namespace {
 
   template <class Needles, class Haystack>
   concept set_equivalent =
-    ex::same_as<ex::__mapply<ex::__msize, Needles>, ex::__mapply<ex::__msize, Haystack>> &&
-    all_contained_in<Needles, Haystack>;
+    ex::same_as<ex::__mapply<ex::__msize, Needles>, ex::__mapply<ex::__msize, Haystack>>
+    && all_contained_in<Needles, Haystack>;
 
   template <const auto& Tag, class... Args>
   using result_of_t = ex::__result_of<Tag, Args...>;
@@ -83,41 +83,41 @@ namespace {
   };
 
   //! Used for debugging, to generate errors to the console
-  template <typename T>
+  template <class T>
   struct type_printer;
 
   //! Used in various sender types queries
-  template <typename... Ts>
-  struct type_array { };
+  template <class... Ts>
+  struct pack { };
 
   //! Used as a default empty context
   using ex::empty_env;
 
   //! Check that the value_types of a sender matches the expected type
-  template <typename ExpectedValType, typename Env = empty_env, typename S>
-  inline void check_val_types(S snd) {
-    using t = typename ex::value_types_of_t<S, Env, type_array, type_array>;
-    static_assert(std::same_as<t, ExpectedValType>);
+  template <class ExpectedValType, class Env = empty_env, class S>
+  inline void check_val_types(S) {
+    using actual_t = ex::value_types_of_t<S, Env, pack, ex::__mset>;
+    static_assert(ex::__mset_eq<actual_t, ExpectedValType>);
   }
 
   //! Check that the env of a sender matches the expected type
-  template <typename ExpectedEnvType, typename S>
+  template <class ExpectedEnvType, class S>
   inline void check_env_type(S snd) {
-    using t = decltype(ex::get_env(snd));
-    static_assert(std::same_as<t, ExpectedEnvType>);
+    using actual_t = decltype(ex::get_env(snd));
+    static_assert(ex::same_as<actual_t, ExpectedEnvType>);
   }
 
   //! Check that the error_types of a sender matches the expected type
-  template <typename ExpectedValType, typename Env = empty_env, typename S>
-  inline void check_err_types(S snd) {
-    using t = ex::error_types_of_t<S, Env, type_array>;
-    static_assert(std::same_as<t, ExpectedValType>);
+  template <class ExpectedValType, class Env = empty_env, class S>
+  inline void check_err_types(S) {
+    using actual_t = ex::error_types_of_t<S, Env, ex::__mset>;
+    static_assert(ex::__mset_eq<actual_t, ExpectedValType>);
   }
 
   //! Check that the sends_stopped of a sender matches the expected value
-  template <bool Expected, typename Env = empty_env, typename S>
-  inline void check_sends_stopped(S snd) {
-    constexpr bool val = ex::sends_stopped<S, Env>;
-    static_assert(val == Expected);
+  template <bool Expected, class Env = empty_env, class S>
+  inline void check_sends_stopped(S) {
+    constexpr bool actual = ex::sends_stopped<S, Env>;
+    static_assert(actual == Expected);
   }
-}
+} // namespace

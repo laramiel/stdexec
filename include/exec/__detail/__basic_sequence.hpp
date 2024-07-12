@@ -26,57 +26,56 @@ namespace exec {
   //////////////////////////////////////////////////////////////////////////////////////////////////
   // __seqexpr
   template <class...>
-  struct __seqexpr {
-    using __id = __seqexpr;
-    using __t = __seqexpr;
+  struct __basic_sequence_sender {
+    using __id = __basic_sequence_sender;
+    using __t = __basic_sequence_sender;
   };
 
-  template <class _ImplFn>
-  struct __seqexpr<_ImplFn> {
+  template <auto _DescriptorFn, class = stdexec::__anon>
+  struct __seqexpr {
     using sender_concept = sequence_sender_t;
     using __t = __seqexpr;
     using __id = __seqexpr;
-    using __tag_t = stdexec::__call_result_t<_ImplFn, stdexec::__cp, stdexec::__detail::__get_tag>;
+    using __desc_t = decltype(_DescriptorFn());
+    using __tag_t = typename __desc_t::__tag;
+    using __captures_t =
+      stdexec::__minvoke<__desc_t, stdexec::__q<stdexec::__detail::__captures_t>>;
 
-    static __tag_t __tag() noexcept {
+    static constexpr auto __tag() noexcept -> __tag_t {
       return {};
     }
 
-    mutable _ImplFn __impl_;
+    mutable __captures_t __impl_;
 
+    template <class _Tag, class _Data, class... _Child>
     STDEXEC_ATTRIBUTE((host, device))
-    explicit __seqexpr(_ImplFn __impl)
-      : __impl_((_ImplFn&&) __impl) {
+    explicit __seqexpr(_Tag, _Data&& __data, _Child&&... __child)
+      : __impl_(stdexec::__detail::__captures(
+        _Tag(),
+        static_cast<_Data&&>(__data),
+        static_cast<_Child&&>(__child)...)) {
     }
 
-    template <stdexec::same_as<stdexec::get_env_t> _Tag, stdexec::same_as<__seqexpr> _Self>
-    friend auto tag_invoke(_Tag, const _Self& __self) noexcept //
-      -> stdexec::__msecond<
-        stdexec::__if_c<stdexec::same_as<_Tag, stdexec::get_env_t>>, //
-        decltype(__self.__tag().get_env(__self))> {
-      static_assert(noexcept(__self.__tag().get_env(__self)));
-      return __tag_t::get_env(__self);
+    template <stdexec::same_as<__seqexpr> _Self = __seqexpr>
+    auto get_env() const noexcept -> decltype(_Self::__tag().get_env(*this)) {
+      static_assert(noexcept(_Self::__tag().get_env(*this)));
+      return _Self::__tag().get_env(*this);
     }
 
-    template <
-      stdexec::same_as<stdexec::get_completion_signatures_t> _Tag,
-      stdexec::__decays_to<__seqexpr> _Self,
-      class _Env>
-    friend auto tag_invoke(_Tag, _Self&& __self, _Env&& __env) //
-      -> stdexec::__msecond<
-        stdexec::__if_c<stdexec::same_as<_Tag, stdexec::get_completion_signatures_t>>,
-        decltype(__self.__tag().get_completion_signatures((_Self&&) __self, (_Env&&) __env))> {
+    template <stdexec::__decays_to<__seqexpr> _Self, class... _Env>
+    static auto get_completion_signatures(_Self&& __self, _Env&&... __env) //
+      -> decltype(__self.__tag().get_completion_signatures(
+        static_cast<_Self&&>(__self),
+        static_cast<_Env&&>(__env)...)) {
       return {};
     }
 
-    template <
-      stdexec::same_as<get_item_types_t> _Tag,
-      stdexec::__decays_to<__seqexpr> _Self,
-      class _Env>
+    template <stdexec::same_as<get_item_types_t> _Tag, stdexec::__decays_to<__seqexpr> _Self, class _Env>
     friend auto tag_invoke(_Tag, _Self&& __self, _Env&& __env) //
       -> stdexec::__msecond<
         stdexec::__if_c<stdexec::same_as<_Tag, get_item_types_t>>,
-        decltype(__self.__tag().get_item_types((_Self&&) __self, (_Env&&) __env))> {
+        decltype(__self.__tag()
+                   .get_item_types(static_cast<_Self&&>(__self), static_cast<_Env&&>(__env)))> {
       return {};
     }
 
@@ -84,16 +83,19 @@ namespace exec {
       stdexec::same_as<subscribe_t> _Tag,
       stdexec::__decays_to<__seqexpr> _Self,
       /*receiver*/ class _Receiver>
-    friend auto tag_invoke(_Tag, _Self&& __self, _Receiver&& __rcvr)                       //
-      noexcept(noexcept(__self.__tag().subscribe((_Self&&) __self, (_Receiver&&) __rcvr))) //
+    friend auto tag_invoke(_Tag, _Self&& __self, _Receiver&& __rcvr) //
+      noexcept(noexcept(__self.__tag().subscribe(
+        static_cast<_Self&&>(__self),
+        static_cast<_Receiver&&>(__rcvr)))) //
       -> stdexec::__msecond<
         stdexec::__if_c<stdexec::same_as<_Tag, subscribe_t>>,
-        decltype(__self.__tag().subscribe((_Self&&) __self, (_Receiver&&) __rcvr))> {
-      return __tag_t::subscribe((_Self&&) __self, (_Receiver&&) __rcvr);
+        decltype(__self.__tag()
+                   .subscribe(static_cast<_Self&&>(__self), static_cast<_Receiver&&>(__rcvr)))> {
+      return __tag_t::subscribe(static_cast<_Self&&>(__self), static_cast<_Receiver&&>(__rcvr));
     }
 
     template <class _Sender, class _ApplyFn>
-    STDEXEC_DEFINE_EXPLICIT_THIS_MEMFN(auto apply)(this _Sender&& __sndr, _ApplyFn&& __fun) //
+    static auto apply(_Sender&& __sndr, _ApplyFn&& __fun) //
       noexcept(stdexec::__nothrow_callable<
                stdexec::__detail::__impl_of<_Sender>,
                stdexec::__copy_cvref_fn<_Sender>,
@@ -102,42 +104,43 @@ namespace exec {
         stdexec::__detail::__impl_of<_Sender>,
         stdexec::__copy_cvref_fn<_Sender>,
         _ApplyFn> { //
-      return ((_Sender&&) __sndr)
-        .__impl_(stdexec::__copy_cvref_fn<_Sender>(), (_ApplyFn&&) __fun); //
+      return static_cast<_Sender&&>(__sndr).__impl_(
+        stdexec::__copy_cvref_fn<_Sender>(), static_cast<_ApplyFn&&>(__fun)); //
     }
   };
 
-  template <class _ImplFn>
+  template <class _Tag, class _Data, class... _Child>
   STDEXEC_ATTRIBUTE((host, device))
-  __seqexpr(_ImplFn) -> __seqexpr<_ImplFn>;
+  __seqexpr(_Tag, _Data, _Child...) -> __seqexpr<STDEXEC_SEXPR_DESCRIPTOR(_Tag, _Data, _Child...)>;
 
-#if STDEXEC_NVHPC() || (STDEXEC_GCC() && __GNUC__ < 13)
+  template <class _Tag, class _Data, class... _Child>
+  using __seqexpr_t = __seqexpr<STDEXEC_SEXPR_DESCRIPTOR(_Tag, _Data, _Child...)>;
+
   namespace __mkseqexpr {
     template <class _Tag, class _Domain = stdexec::default_domain>
     struct make_sequence_expr_t {
       template <class _Data = stdexec::__, class... _Children>
       constexpr auto operator()(_Data __data = {}, _Children... __children) const {
-        return __seqexpr{stdexec::__detail::__make_tuple(
-          _Tag(), stdexec::__detail::__mbc(__data), stdexec::__detail::__mbc(__children)...)};
+        return __seqexpr_t<_Tag, _Data, _Children...>{
+          _Tag(), static_cast<_Data&&>(__data), static_cast<_Children&&>(__children)...};
       }
     };
-  }
-#else
-  namespace __mkseqexpr {
-    template <class _Tag, class _Domain = stdexec::default_domain>
-    struct make_sequence_expr_t {
-      template <class _Data = stdexec::__, class... _Children>
-      constexpr auto operator()(_Data __data = {}, _Children... __children) const {
-        return __seqexpr{
-          stdexec::__detail::__make_tuple(_Tag(), (_Data&&) __data, (_Children&&) __children...)};
-      }
-    };
-  }
-#endif
+  } // namespace __mkseqexpr
+
+  struct __basic_sequence_sender_name {
+    template <class _Tag, class _Data, class... _Child>
+    using __result = __basic_sequence_sender<_Tag, _Data, stdexec::__name_of<_Child>...>;
+
+    template <class _Sender>
+    using __f =
+      stdexec::__minvoke<typename stdexec::__decay_t<_Sender>::__desc_t, stdexec::__q<__result>>;
+  };
 
   template <class _Tag, class _Domain = stdexec::default_domain>
   inline constexpr __mkseqexpr::make_sequence_expr_t<_Tag, _Domain> make_sequence_expr{};
+} // namespace exec
 
-  template <class _Tag, class _Data, class... _Children>
-  using __seqexpr_t = stdexec::__result_of<make_sequence_expr<_Tag>, _Data, _Children...>;
-}
+namespace stdexec::__detail {
+  template <auto _DescriptorFn>
+  extern exec::__basic_sequence_sender_name __name_of_v<exec::__seqexpr<_DescriptorFn>>;
+} // namespace stdexec::__detail

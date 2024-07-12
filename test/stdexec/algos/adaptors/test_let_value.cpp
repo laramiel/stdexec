@@ -117,11 +117,10 @@ namespace {
         throw std::logic_error("not prime");
       return ex::just(x);
     };
-    ex::sender auto snd =
-      ex::just(13)        //
-      | ex::let_value(f1) //
-      | ex::let_value(f2) //
-      | ex::let_value(f3) //
+    ex::sender auto snd = ex::just(13)      //
+                        | ex::let_value(f1) //
+                        | ex::let_value(f2) //
+                        | ex::let_value(f3) //
       ;
     wait_for_value(std::move(snd), 29);
     CHECK(called1);
@@ -131,10 +130,7 @@ namespace {
 
   TEST_CASE("let_value can throw, and set_error will be called", "[adaptors][let_value]") {
     auto snd = ex::just(13) //
-             | ex::let_value([](int& x) {
-                 throw std::logic_error{"err"};
-                 return ex::just(x + 5);
-               });
+             | ex::let_value([](int&) -> decltype(ex::just(0)) { throw std::logic_error{"err"}; });
     auto op = ex::connect(std::move(snd), expect_error_receiver{});
     ex::start(op);
   }
@@ -214,7 +210,7 @@ namespace {
     impulse_scheduler sched;
 
     ex::sender auto snd = ex::just(my_type(&param_destructed)) //
-                        | ex::let_value([&](const my_type& obj) {
+                        | ex::let_value([&](const my_type&) {
                             CHECK_FALSE(param_destructed);
                             fun_called = true;
                             return ex::transfer_just(sched, 13);
@@ -247,13 +243,12 @@ namespace {
     std::atomic<bool> called{false};
     {
       // lunch some work on the thread pool
-      ex::sender auto snd =
-        ex::transfer_just(pool.get_scheduler(), 7)                  //
-        | ex::let_value([](int& x) { return ex::just(x * 2 - 1); }) //
-        | ex::then([&](int x) {
-            CHECK(x == 13);
-            called.store(true);
-          });
+      ex::sender auto snd = ex::transfer_just(pool.get_scheduler(), 7)                //
+                          | ex::let_value([](int& x) { return ex::just(x * 2 - 1); }) //
+                          | ex::then([&](int x) {
+                              CHECK(x == 13);
+                              called.store(true);
+                            });
       ex::start_detached(std::move(snd));
     }
     // wait for the work to be executed, with timeout
@@ -268,12 +263,13 @@ namespace {
   TEST_CASE(
     "let_value has the values_type corresponding to the given values",
     "[adaptors][let_value]") {
-    check_val_types<type_array<type_array<int>>>(
-      ex::just() | ex::let_value([] { return ex::just(7); }));
-    check_val_types<type_array<type_array<double>>>(
-      ex::just() | ex::let_value([] { return ex::just(3.14); }));
-    check_val_types<type_array<type_array<std::string>>>(
-      ex::just() | ex::let_value([] { return ex::just(std::string{"hello"}); }));
+    check_val_types<ex::__mset<pack<int>>>(ex::just() | ex::let_value([] { return ex::just(7); }));
+    check_val_types<ex::__mset<pack<double>>>(ex::just() | ex::let_value([] {
+                                                return ex::just(3.14);
+                                              }));
+    check_val_types<ex::__mset<pack<std::string>>>(ex::just() | ex::let_value([] {
+                                                     return ex::just(std::string{"hello"});
+                                                   }));
   }
 
   TEST_CASE("let_value keeps error_types from input sender", "[adaptors][let_value]") {
@@ -281,12 +277,19 @@ namespace {
     error_scheduler sched2{};
     error_scheduler<int> sched3{43};
 
-    check_err_types<type_array<std::exception_ptr>>( //
+    check_err_types<ex::__mset<std::exception_ptr>>( //
       ex::transfer_just(sched1) | ex::let_value([] { return ex::just(); }));
-    check_err_types<type_array<std::exception_ptr>>( //
+    check_err_types<ex::__mset<std::exception_ptr>>( //
       ex::transfer_just(sched2) | ex::let_value([] { return ex::just(); }));
-    check_err_types<type_array<int, std::exception_ptr>>( //
+    check_err_types<ex::__mset<int, std::exception_ptr>>( //
       ex::transfer_just(sched3) | ex::let_value([] { return ex::just(); }));
+
+    check_err_types<ex::__mset<>>( //
+      ex::transfer_just(sched1) | ex::let_value([]() noexcept { return ex::just(); }));
+    check_err_types<ex::__mset<std::exception_ptr>>( //
+      ex::transfer_just(sched2) | ex::let_value([]() noexcept { return ex::just(); }));
+    check_err_types<ex::__mset<int>>( //
+      ex::transfer_just(sched3) | ex::let_value([]() noexcept { return ex::just(); }));
   }
 
   TEST_CASE("let_value keeps sends_stopped from input sender", "[adaptors][let_value]") {
@@ -306,7 +309,7 @@ namespace {
   using my_string_sender_t = decltype(ex::transfer_just(inline_scheduler{}, std::string{}));
 
   template <typename Fun>
-  auto tag_invoke(ex::let_value_t, inline_scheduler sched, my_string_sender_t, Fun) {
+  auto tag_invoke(ex::let_value_t, inline_scheduler, my_string_sender_t, Fun) {
     return ex::just(std::string{"hallo"});
   }
 
@@ -327,4 +330,33 @@ namespace {
                 });
     wait_for_value(std::move(work), 2);
   }
-}
+
+  struct bad_receiver {
+    using receiver_concept = ex::receiver_t;
+
+    bad_receiver(bool& completed) noexcept
+      : completed_{completed} {
+    }
+
+    bad_receiver(bad_receiver&& other) noexcept(false)
+      : completed_(other.completed_) {
+    }
+
+    void set_value() noexcept {
+      completed_ = true;
+    }
+
+    bool& completed_;
+  };
+
+  TEST_CASE(
+    "let_value does not add std::exception_ptr even if the receiver is bad",
+    "[adaptors][let_value]") {
+    auto snd = ex::let_value(ex::just(), []() noexcept { return ex::just(); });
+    check_err_types<ex::__mset<>>(snd);
+    bool completed{false};
+    auto op = ex::connect(std::move(snd), bad_receiver{completed}); // should compile
+    ex::start(op);
+    CHECK(completed);
+  }
+} // namespace

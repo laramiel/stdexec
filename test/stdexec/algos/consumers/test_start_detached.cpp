@@ -24,7 +24,7 @@
 #include <chrono>
 
 #if STDEXEC_HAS_STD_MEMORY_RESOURCE()
-#include <memory_resource>
+#  include <memory_resource>
 #endif
 
 namespace ex = stdexec;
@@ -98,11 +98,11 @@ namespace {
 
     template <class Receiver>
     friend auto tag_invoke(ex::connect_t, custom_sender, Receiver&& rcvr) {
-      return ex::connect(ex::schedule(inline_scheduler{}), (Receiver&&) rcvr);
+      return ex::connect(ex::schedule(inline_scheduler{}), static_cast<Receiver&&>(rcvr));
     }
 
     template <class Env>
-    friend auto tag_invoke(ex::get_completion_signatures_t, custom_sender, Env) noexcept
+    auto get_completion_signatures(Env&&) const noexcept
       -> ex::completion_signatures<ex::set_value_t()> {
       return {};
     }
@@ -110,23 +110,18 @@ namespace {
     friend void tag_invoke(ex::start_detached_t, custom_sender sndr) {
       *sndr.called = true;
     }
-
-    friend empty_env tag_invoke(ex::get_env_t, const custom_sender&) noexcept {
-      return {};
-    }
   };
 
   struct custom_scheduler {
     struct sender : ex::schedule_result_t<inline_scheduler> {
       struct env {
         template <class Tag>
-        friend custom_scheduler
-          tag_invoke(ex::get_completion_scheduler_t<Tag>, const env&) noexcept {
+        custom_scheduler query(ex::get_completion_scheduler_t<Tag>) const noexcept {
           return {};
         }
       };
 
-      friend env tag_invoke(ex::get_env_t, const sender&) noexcept {
+      env get_env() const noexcept {
         return {};
       }
     };
@@ -138,11 +133,11 @@ namespace {
       }
     };
 
-    friend domain tag_invoke(ex::get_domain_t, custom_scheduler) noexcept {
+    domain query(ex::get_domain_t) const noexcept {
       return {};
     }
 
-    friend sender tag_invoke(ex::schedule_t, custom_scheduler) noexcept {
+    sender schedule() const noexcept {
       return {};
     }
 
@@ -164,7 +159,7 @@ namespace {
     CHECK_FALSE(called);
   }
 
-#if STDEXEC_HAS_STD_MEMORY_RESOURCE() \
+#if STDEXEC_HAS_STD_MEMORY_RESOURCE()                                                              \
   && (defined(__cpp_lib_polymorphic_allocator) && __cpp_lib_polymorphic_allocator >= 201902L)
 
   struct counting_resource : std::pmr::memory_resource {
@@ -210,6 +205,31 @@ namespace {
   }
 #endif
 
-}
+  TEST_CASE("exec::on can be passed to start_detached", "[adaptors][exec::on]") {
+    ex::run_loop loop;
+    auto sch = loop.get_scheduler();
+    auto snd = ex::get_scheduler() | ex::let_value([](auto sched) {
+                 static_assert(ex::same_as<decltype(sched), ex::run_loop::__scheduler>);
+                 return ex::on(sched, ex::just());
+               });
+    ex::start_detached(ex::v2::on(sch, std::move(snd)));
+    loop.finish();
+    loop.run();
+  }
+
+  struct env { };
+
+  TEST_CASE("exec::on can be passed to start_detached with env", "[adaptors][exec::on]") {
+    ex::run_loop loop;
+    auto sch = loop.get_scheduler();
+    auto snd = ex::get_scheduler() | ex::let_value([](auto sched) {
+                 static_assert(ex::same_as<decltype(sched), ex::run_loop::__scheduler>);
+                 return ex::on(sched, ex::just());
+               });
+    ex::start_detached(ex::v2::on(sch, std::move(snd)), env{});
+    loop.finish();
+    loop.run();
+  }
+} // namespace
 
 STDEXEC_PRAGMA_POP()

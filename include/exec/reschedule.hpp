@@ -30,14 +30,14 @@ namespace exec {
 
     template <class _Env>
     using __no_scheduler_error = //
-      __mexception< _INVALID_RESCHEDULE_NO_SCHEDULER_<>, _WITH_ENVIRONMENT_<_Env>>;
+      __mexception<_INVALID_RESCHEDULE_NO_SCHEDULER_<>, _WITH_ENVIRONMENT_<_Env>>;
 
     template <class _Env>
     using __schedule_sender_t = schedule_result_t<__call_result_t<get_scheduler_t, _Env>>;
 
     template <class _Env>
     using __try_schedule_sender_t =
-      __minvoke< __mtry_catch_q<__schedule_sender_t, __q<__no_scheduler_error>>, _Env>;
+      __minvoke<__mtry_catch_q<__schedule_sender_t, __q<__no_scheduler_error>>, _Env>;
 
     template <class _Env>
     using __completions =
@@ -47,43 +47,41 @@ namespace exec {
       struct __sender {
         using sender_concept = sender_t;
 
-        template <class _Env>
-        friend auto tag_invoke(get_completion_signatures_t, __sender, _Env&&) noexcept
-          -> __completions<_Env> {
+        auto get_completion_signatures(__ignore = {}) noexcept -> __completions<_Env> {
           return {};
         }
 
         template <receiver _Receiver>
           requires receiver_of<_Receiver, __completions<env_of_t<_Receiver>>>
-        friend auto tag_invoke(connect_t, __sender, _Receiver __rcvr)
+        auto connect(_Receiver __rcvr) const
           -> connect_result_t<__schedule_sender_t<env_of_t<_Receiver>>, _Receiver> {
           auto __sched = get_scheduler(get_env(__rcvr));
-          return connect(schedule(__sched), (_Receiver&&) __rcvr);
+          return stdexec::connect(schedule(__sched), static_cast<_Receiver&&>(__rcvr));
         }
 
-        friend auto tag_invoke(get_env_t, __sender) noexcept {
+        auto get_env() const noexcept {
           return __env::__with{__scheduler(), get_completion_scheduler<set_value_t>};
         }
       };
 
-      friend __sender tag_invoke(schedule_t, __scheduler) noexcept {
+      auto schedule() const noexcept -> __sender {
         return {};
       }
 
-      bool operator==(const __scheduler&) const noexcept = default;
+      auto operator==(const __scheduler&) const noexcept -> bool = default;
     };
 
     struct __reschedule_t {
       template <sender _Sender>
       auto operator()(_Sender&& __sndr) const {
-        return stdexec::transfer((_Sender&&) __sndr, __resched::__scheduler{});
+        return stdexec::transfer(static_cast<_Sender&&>(__sndr), __resched::__scheduler{});
       }
 
       auto operator()() const {
         return stdexec::transfer(__resched::__scheduler{});
       }
     };
-  }
+  } // namespace __resched
 
   inline constexpr auto reschedule = __resched::__reschedule_t{};
-}
+} // namespace exec

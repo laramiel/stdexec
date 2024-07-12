@@ -186,23 +186,20 @@ namespace {
     "[adaptors][schedule_from]") {
     inline_scheduler sched{};
 
-    check_val_types<type_array<type_array<int&&>>>(ex::schedule_from(sched, ex::just(1)));
-    check_val_types<type_array<type_array<int&&, double&&>>>(
-      ex::schedule_from(sched, ex::just(3, 0.14)));
-    check_val_types<type_array<type_array<int&&, double&&, std::string&&>>>(
+    check_val_types<ex::__mset<pack<int>>>(ex::schedule_from(sched, ex::just(1)));
+    check_val_types<ex::__mset<pack<int, double>>>(ex::schedule_from(sched, ex::just(3, 0.14)));
+    check_val_types<ex::__mset<pack<int, double, std::string>>>(
       ex::schedule_from(sched, ex::just(3, 0.14, std::string{"pi"})));
   }
 
-  TEST_CASE(
-    "schedule_from keeps error_types from scheduler's sender",
-    "[adaptors][schedule_from]") {
+  TEST_CASE("schedule_from keeps error_types from scheduler's sender", "[adaptors][schedule_from]") {
     inline_scheduler sched1{};
     error_scheduler sched2{};
     error_scheduler<int> sched3{43};
 
-    check_err_types<type_array<>>(ex::schedule_from(sched1, ex::just(1)));
-    check_err_types<type_array<std::exception_ptr>>(ex::schedule_from(sched2, ex::just(2)));
-    check_err_types<type_array<int>>(ex::schedule_from(sched3, ex::just(3)));
+    check_err_types<ex::__mset<>>(ex::schedule_from(sched1, ex::just(1)));
+    check_err_types<ex::__mset<std::exception_ptr>>(ex::schedule_from(sched2, ex::just(2)));
+    check_err_types<ex::__mset<int>>(ex::schedule_from(sched3, ex::just(3)));
   }
 
   TEST_CASE(
@@ -210,7 +207,7 @@ namespace {
     "[adaptors][schedule_from]") {
     inline_scheduler sched{};
 
-    check_err_types<type_array<std::exception_ptr>>(
+    check_err_types<ex::__mset<std::exception_ptr>>(
       ex::schedule_from(sched, ex::just(potentially_throwing{})));
   }
 
@@ -230,7 +227,7 @@ namespace {
 
   // Customization of schedule_from
   // Return a different sender
-  auto tag_invoke(decltype(ex::schedule_from), inline_scheduler sched, just_string_sender_t) {
+  auto tag_invoke(decltype(ex::schedule_from), inline_scheduler, just_string_sender_t) {
     return ex::just(std::string{"hijacked"});
   }
 
@@ -247,9 +244,9 @@ namespace {
     typename exec::any_receiver_ref<stdexec::completion_signatures<Ts...>>::template any_sender<>;
 
   TEST_CASE("schedule_from can handle any_sender", "[adaptors][schedule_from]") {
-    auto snd = stdexec::schedule_from(
-      inline_scheduler{}, any_sender_of<ex::set_value_t(int)>(ex::just(3)));
+    auto snd =
+      stdexec::schedule_from(inline_scheduler{}, any_sender_of<ex::set_value_t(int)>(ex::just(3)));
     auto op = ex::connect(std::move(snd), expect_value_receiver(3));
     ex::start(op);
   }
-}
+} // namespace

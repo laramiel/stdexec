@@ -20,9 +20,9 @@
 
 #if STDEXEC_HAS_STD_RANGES()
 
-#include <array>
-#include <catch2/catch.hpp>
-#include <numeric>
+#  include <array>
+#  include <catch2/catch.hpp>
+#  include <numeric>
 
 namespace {
 
@@ -32,24 +32,23 @@ namespace {
     Receiver rcvr;
     int* sum_;
 
-    friend stdexec::env_of_t<Receiver>
-      tag_invoke(stdexec::get_env_t, const sum_item_rcvr& self) noexcept {
-      return stdexec::get_env(self.rcvr);
+    auto get_env() const noexcept -> stdexec::env_of_t<Receiver> {
+      return stdexec::get_env(rcvr);
     }
 
     template <class... As>
-    friend void tag_invoke(stdexec::set_value_t, sum_item_rcvr&& self, int x) noexcept {
-      *self.sum_ += x;
-      stdexec::set_value(static_cast<Receiver&&>(self.rcvr));
+    void set_value(int x) noexcept {
+      *sum_ += x;
+      stdexec::set_value(static_cast<Receiver&&>(rcvr));
     }
 
-    friend void tag_invoke(stdexec::set_stopped_t, sum_item_rcvr&& self) noexcept {
-      stdexec::set_value(static_cast<Receiver&&>(self.rcvr));
+    void set_stopped() noexcept {
+      stdexec::set_value(static_cast<Receiver&&>(rcvr));
     }
 
     template <class E>
-    friend void tag_invoke(stdexec::set_error_t, sum_item_rcvr&& self, E&&) noexcept {
-      stdexec::set_value(static_cast<Receiver&&>(self.rcvr));
+    void set_error(E&&) noexcept {
+      stdexec::set_value(static_cast<Receiver&&>(rcvr));
     }
   };
 
@@ -84,17 +83,17 @@ namespace {
       return {static_cast<Item&&>(item), &self.sum_};
     }
 
-    friend void tag_invoke(stdexec::set_value_t, sum_receiver&&) noexcept {
+    void set_value() noexcept {
     }
 
-    friend void tag_invoke(stdexec::set_stopped_t, sum_receiver&&) noexcept {
+    void set_stopped() noexcept {
     }
 
-    friend void tag_invoke(stdexec::set_error_t, sum_receiver&&, std::exception_ptr) noexcept {
+    void set_error(std::exception_ptr) noexcept {
     }
 
-    friend Env tag_invoke(stdexec::get_env_t, const sum_receiver& self) noexcept {
-      return self.env_;
+    Env get_env() const noexcept {
+      return env_;
     }
   };
 
@@ -112,8 +111,8 @@ namespace {
   struct my_domain {
     template <stdexec::sender_expr_for<exec::iterate_t> Sender, class _Env>
     auto transform_sender(Sender&& sender, _Env&&) const noexcept {
-      auto range = stdexec::__sexpr_apply(
-        std::forward<Sender>(sender), stdexec::__detail::__get_data{});
+      auto range =
+        stdexec::__sexpr_apply(std::forward<Sender>(sender), stdexec::__detail::__get_data{});
       auto sum = std::accumulate(std::ranges::begin(range), std::ranges::end(range), 0);
       return stdexec::just(sum + 1);
     }
@@ -132,6 +131,6 @@ namespace {
     CHECK(sum == (42 + 43 + 44 + 1));
   }
 
-}
+} // namespace
 
 #endif // STDEXEC_HAS_STD_RANGES()

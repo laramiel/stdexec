@@ -27,15 +27,15 @@ namespace stdexec {
   struct default_domain;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
-  namespace __receivers {
+  namespace __rcvrs {
     struct set_value_t;
     struct set_error_t;
     struct set_stopped_t;
-  }
+  } // namespace __rcvrs
 
-  using __receivers::set_value_t;
-  using __receivers::set_error_t;
-  using __receivers::set_stopped_t;
+  using __rcvrs::set_value_t;
+  using __rcvrs::set_error_t;
+  using __rcvrs::set_stopped_t;
   extern const set_value_t set_value;
   extern const set_error_t set_error;
   extern const set_stopped_t set_stopped;
@@ -49,18 +49,21 @@ namespace stdexec {
   extern const bool enable_receiver;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
-  namespace __env {
+  namespace __get_env {
     struct get_env_t;
+  } // namespace __get_env
 
+  using __get_env::get_env_t;
+  extern const get_env_t get_env;
+
+  namespace __env {
     struct empty_env {
       using __t = empty_env;
       using __id = empty_env;
     };
-  }
+  } // namespace __env
 
   using __env::empty_env;
-  using __env::get_env_t;
-  extern const get_env_t get_env;
 
   template <class _EnvProvider>
   using env_of_t = __call_result_t<get_env_t, _EnvProvider>;
@@ -106,6 +109,12 @@ namespace stdexec {
   template <__completion_tag _CPO>
   extern const get_completion_scheduler_t<_CPO> get_completion_scheduler;
 
+  struct never_stop_token;
+  class inplace_stop_source;
+  class inplace_stop_token;
+  template <class _Fn>
+  class inplace_stop_callback;
+
   template <class _Tp>
   using stop_token_of_t = __decay_t<__call_result_t<get_stop_token_t, _Tp>>;
 
@@ -118,17 +127,30 @@ namespace stdexec {
     __call_result_t<get_completion_scheduler_t<_CPO>, env_of_t<const _Sender&>>;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
-  namespace __get_completion_signatures {
-    struct get_completion_signatures_t;
-  }
+  namespace __sigs {
+    template <class _Sig>
+    inline constexpr bool __is_compl_sig = false;
 
-  using __get_completion_signatures::get_completion_signatures_t;
+    struct get_completion_signatures_t;
+  } // namespace __sigs
+
+  template <class _Sig>
+  concept __completion_signature = __sigs::__is_compl_sig<_Sig>;
+
+  template <class... _Sigs>
+  struct completion_signatures;
+
+  using __sigs::get_completion_signatures_t;
   extern const get_completion_signatures_t get_completion_signatures;
+
+  template <class _Sender, class... _Env>
+  using __completion_signatures_of_t = //
+    __call_result_t<get_completion_signatures_t, _Sender, _Env...>;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
   namespace __connect {
     struct connect_t;
-  }
+  } // namespace __connect
 
   using __connect::connect_t;
   extern const connect_t connect;
@@ -147,39 +169,53 @@ namespace stdexec {
   //////////////////////////////////////////////////////////////////////////////////////////////////
   namespace __start {
     struct start_t;
-  }
+  } // namespace __start
 
   using __start::start_t;
   extern const start_t start;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
-  namespace __schedule {
+  namespace __sched {
     struct schedule_t;
-  }
+  } // namespace __sched
 
-  using __schedule::schedule_t;
+  using __sched::schedule_t;
   extern const schedule_t schedule;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
   namespace __as_awaitable {
     struct as_awaitable_t;
-  }
+  } // namespace __as_awaitable
 
   using __as_awaitable::as_awaitable_t;
   extern const as_awaitable_t as_awaitable;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
-  namespace __transfer {
-    struct transfer_t;
-  }
+  namespace __start_on {
+    struct start_on_t;
+  } // namespace __start_on
 
-  using __transfer::transfer_t;
+  using __start_on::start_on_t;
+  extern const start_on_t start_on;
+
+  using on_t = start_on_t;
+  extern const on_t on;
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////
+  namespace __continue_on {
+    struct continue_on_t;
+  } // namespace __continue_on
+
+  using __continue_on::continue_on_t;
+  extern const continue_on_t continue_on;
+
+  using transfer_t = continue_on_t;
   extern const transfer_t transfer;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////
   namespace __transfer_just {
     struct transfer_just_t;
-  }
+  } // namespace __transfer_just
 
   using __transfer_just::transfer_just_t;
   extern const transfer_just_t transfer_just;
@@ -187,7 +223,7 @@ namespace stdexec {
   //////////////////////////////////////////////////////////////////////////////////////////////////
   namespace __bulk {
     struct bulk_t;
-  }
+  } // namespace __bulk
 
   using __bulk::bulk_t;
   extern const bulk_t bulk;
@@ -196,7 +232,7 @@ namespace stdexec {
   namespace __split {
     struct split_t;
     struct __split_t;
-  }
+  } // namespace __split
 
   using __split::split_t;
   extern const split_t split;
@@ -205,7 +241,7 @@ namespace stdexec {
   namespace __ensure_started {
     struct ensure_started_t;
     struct __ensure_started_t;
-  }
+  } // namespace __ensure_started
 
   using __ensure_started::ensure_started_t;
   extern const ensure_started_t ensure_started;
@@ -213,23 +249,24 @@ namespace stdexec {
   //////////////////////////////////////////////////////////////////////////////////////////////////
   namespace __on_v2 {
     struct on_t;
-  }
+  } // namespace __on_v2
 
   namespace v2 {
     using __on_v2::on_t;
-  }
+  } // namespace v2
 
   namespace __detail {
     struct __sexpr_apply_t;
-  }
+  } // namespace __detail
 
   using __detail::__sexpr_apply_t;
   extern const __sexpr_apply_t __sexpr_apply;
+} // namespace stdexec
+
+template <class...>
+[[deprecated]]
+void __print() {
 }
 
 template <class...>
-[[deprecated]] void print() {
-}
-
-template <class>
-struct undef;
+struct __undef;

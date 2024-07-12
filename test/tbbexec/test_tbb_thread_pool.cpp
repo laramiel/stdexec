@@ -41,7 +41,8 @@ namespace {
 
     // Example adapted from
     // https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2300r5.html#example-async-inclusive-scan
-    [[nodiscard]] stdexec::sender auto async_inclusive_scan(
+    [[nodiscard]]
+    stdexec::sender auto async_inclusive_scan(
       stdexec::scheduler auto sch,   // 2
       std::span<const double> input, // 1
       std::span<double> output,      // 1
@@ -61,7 +62,7 @@ namespace {
                auto start = i * tile_size;
                auto end = std::min(input.size(), (i + 1) * tile_size);
                partials[i + 1] = *--std::inclusive_scan(
-                   begin(input) + (long) start, begin(input) + (long) end, begin(output) + (long) start);
+                   begin(input) + static_cast<long>(start), begin(input) + static_cast<long>(end), begin(output) + static_cast<long>(start));
              })
        | then([](std::vector<double>&& partials) {
            std::inclusive_scan(begin(partials), end(partials), begin(partials));
@@ -71,10 +72,10 @@ namespace {
              [=](std::size_t i, std::span<const double> partials) {
                auto start = i * tile_size;
                auto end = std::min(input.size(), (i + 1) * tile_size);
-               std::for_each(begin(output) + (long) start, begin(output) + (long) end,
+               std::for_each(begin(output) + static_cast<long>(start), begin(output) + static_cast<long>(end),
                    [&](double& e) { e = partials[i] + e; });
              })
-       | then([=](std::vector<double>&& partials) { return output; });
+       | then([=](std::vector<double>&&) { return output; });
       // clang-format on
     }
 
@@ -140,15 +141,18 @@ namespace {
     tbbexec::tbb_thread_pool tbb_pool;
     exec::static_thread_pool other_pool(1);
     {
-      CHECK_THROWS(stdexec::sync_wait(
-        on(tbb_pool.get_scheduler(), just(0)) | then([](auto i) { throw std::exception(); })));
-      CHECK_THROWS(stdexec::sync_wait(
-        on(other_pool.get_scheduler(), just(0)) | then([](auto i) { throw std::exception(); })));
+      CHECK_THROWS(stdexec::sync_wait(on(tbb_pool.get_scheduler(), just(0)) | then([](auto) {
+                                        throw std::exception();
+                                      })));
+      CHECK_THROWS(stdexec::sync_wait(on(other_pool.get_scheduler(), just(0)) | then([](auto) {
+                                        throw std::exception();
+                                      })));
     }
     // Ensure it still works normally after exceptions:
     {
-      auto tbb_result = stdexec::sync_wait(
-        on(tbb_pool.get_scheduler(), just(0)) | then([](auto i) { return i + 1; }));
+      auto tbb_result = stdexec::sync_wait(on(tbb_pool.get_scheduler(), just(0)) | then([](auto i) {
+                                             return i + 1;
+                                           }));
       CHECK(tbb_result.has_value());
       auto other_result = stdexec::sync_wait(
         on(other_pool.get_scheduler(), just(0)) | then([](auto i) { return i + 1; }));
@@ -166,4 +170,4 @@ namespace {
     REQUIRE(value.data() == output.data());
     CHECK(output == std::array{1.0, 3.0, 2.0, 0.0});
   }
-}
+} // namespace

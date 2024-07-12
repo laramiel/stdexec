@@ -73,15 +73,14 @@ namespace {
       REQUIRE(counter == 1);
       ex::start(op2);
       // The receiver will ensure that the right value is produced
-
       REQUIRE(counter == 1);
     }
 
     SECTION("without parameters") {
       int counter{};
       auto snd = ex::split(ex::just() | ex::then([&] { counter++; }));
-      stdexec::sync_wait(snd | ex::then([] {}));
-      stdexec::sync_wait(snd | ex::then([] {}));
+      ex::sync_wait(snd | ex::then([] {}));
+      ex::sync_wait(snd | ex::then([] {}));
       REQUIRE(counter == 1);
     }
   }
@@ -89,8 +88,8 @@ namespace {
   TEST_CASE("split passes lvalue references", "[adaptors][split]") {
     auto split = ex::split(ex::just(42));
     using split_t = decltype(split);
-    using value_t = ex::value_types_of_t<split_t, stdexec::empty_env, std::tuple>;
-    static_assert(std::is_same_v<value_t, std::variant<std::tuple<const int&>>>);
+    using value_t = ex::value_types_of_t<split_t, ex::empty_env, pack, ex::__mmake_set>;
+    static_assert(ex::__mset_eq<value_t, ex::__mset<pack<const int&>>>);
 
     auto then = split //
               | ex::then([](const int& cval) {
@@ -111,8 +110,8 @@ namespace {
     SECTION("of exception_ptr type") {
       auto split = ex::split(ex::just_error(std::exception_ptr{}));
       using split_t = decltype(split);
-      using error_t = ex::error_types_of_t<split_t, stdexec::empty_env, std::variant>;
-      static_assert(std::is_same_v<error_t, std::variant<const std::exception_ptr&>>);
+      using error_t = ex::error_types_of_t<split_t, ex::empty_env, ex::__mmake_set>;
+      static_assert(ex::__mset_eq<error_t, ex::__mset<const std::exception_ptr&>>);
 
       auto op = ex::connect(split, expect_error_receiver{});
       ex::start(op);
@@ -122,8 +121,8 @@ namespace {
     SECTION("of any type") {
       auto split = ex::split(ex::just_error(42));
       using split_t = decltype(split);
-      using error_t = ex::error_types_of_t<split_t, stdexec::empty_env, std::variant>;
-      static_assert(std::is_same_v<error_t, std::variant<const std::exception_ptr&, const int&>>);
+      using error_t = ex::error_types_of_t<split_t, ex::empty_env, ex::__mmake_set>;
+      static_assert(ex::__mset_eq<error_t, ex::__mset<const std::exception_ptr&, const int&>>);
 
       auto op = ex::connect(split, expect_error_receiver<int>{});
       ex::start(op);
@@ -133,7 +132,7 @@ namespace {
   TEST_CASE("split forwards stop signal", "[adaptors][split]") {
     auto split = ex::split(ex::just_stopped());
     using split_t = decltype(split);
-    static_assert(ex::sends_stopped<split_t, stdexec::empty_env>);
+    static_assert(ex::sends_stopped<split_t, ex::empty_env>);
 
     auto op = ex::connect(split, expect_stopped_receiver{});
     ex::start(op);
@@ -141,13 +140,13 @@ namespace {
   }
 
   TEST_CASE("split forwards external stop signal (1)", "[adaptors][split]") {
-    stdexec::in_place_stop_source ssource;
+    ex::inplace_stop_source ssource;
     bool called = false;
     int counter{};
     auto split = ex::split(ex::just() | ex::then([&] { called = true; }));
     auto sndr = exec::write(
       ex::upon_stopped(
-        split,
+        std::move(split),
         [&] {
           ++counter;
           return 42;
@@ -156,16 +155,17 @@ namespace {
     auto op1 = ex::connect(sndr, expect_value_receiver{42});
     auto op2 = ex::connect(std::move(sndr), expect_value_receiver{42});
     ssource.request_stop();
-    REQUIRE(counter == 0);
+    CHECK(counter == 0);
     ex::start(op1);
-    REQUIRE(counter == 1);
-    REQUIRE(!called);
+    CHECK(counter == 1);
+    CHECK(!called);
     ex::start(op2);
-    REQUIRE(counter == 2);
+    CHECK(counter == 2);
+    CHECK(!called);
   }
 
   TEST_CASE("split forwards external stop signal (2)", "[adaptors][split]") {
-    stdexec::in_place_stop_source ssource;
+    ex::inplace_stop_source ssource;
     bool called = false;
     int counter{};
     auto split = ex::split(
@@ -176,26 +176,26 @@ namespace {
         }));
     auto sndr = exec::write(
       ex::upon_stopped(
-        split,
+        std::move(split),
         [&] {
           ++counter;
           return 42;
         }),
       exec::with(ex::get_stop_token, ssource.get_token()));
     auto op1 = ex::connect(sndr, expect_value_receiver{7});
-    auto op2 = ex::connect(sndr, expect_value_receiver{7});
+    auto op2 = ex::connect(sndr, expect_value_receiver{42});
     REQUIRE(counter == 0);
     ex::start(op1); // operation starts and finishes.
     REQUIRE(counter == 0);
     REQUIRE(called);
     ssource.request_stop();
-    ex::start(op2); // operation is done, result is delivered.
-    REQUIRE(counter == 0);
+    ex::start(op2); // operation completes immediately with stopped.
+    REQUIRE(counter == 1);
   }
 
   TEST_CASE("split forwards external stop signal (3)", "[adaptors][split]") {
     impulse_scheduler sched;
-    stdexec::in_place_stop_source ssource;
+    ex::inplace_stop_source ssource;
     bool called = false;
     int counter{};
     auto split = ex::split(ex::on(
@@ -207,33 +207,36 @@ namespace {
           })));
     auto sndr = exec::write(
       ex::upon_stopped(
-        split,
+        std::move(split),
         [&] {
           ++counter;
           return 42;
         }),
       exec::with(ex::get_stop_token, ssource.get_token()));
     auto op1 = ex::connect(sndr, expect_value_receiver{42});
-    auto op2 = ex::connect(sndr, expect_value_receiver{42});
+    auto op2 = ex::connect(std::move(sndr), expect_value_receiver{42});
     REQUIRE(counter == 0);
     ex::start(op1); // puts a unit of work on the impulse_scheduler and
                     // op1 into the list of waiting operations.
     REQUIRE(counter == 0);
     REQUIRE(!called);
-    ssource.request_stop();
-    ex::start(op2); // puts op2 in the list of waiting operations.
-    REQUIRE(counter == 0);
+    ssource.request_stop(); // This executes op1's stop callback, which
+                            // completes op1 with "stopped". counter == 1
+    REQUIRE(counter == 1);
+    ex::start(op2); // Should immediately call set_stopped without getting
+                    // added to the list of waiting operations. counter == 2
+    REQUIRE(counter == 2);
     REQUIRE(!called);
     sched.start_next(); // Impulse scheduler notices stop has been requested
-                        // and completes op1 with "stopped", which notifies
-                        // all waiting states.
+                        // and completes the underlying operation (just | then(...))
+                        // with "stopped".
     REQUIRE(counter == 2);
     REQUIRE(!called);
   }
 
   TEST_CASE("split forwards external stop signal (4)", "[adaptors][split]") {
     impulse_scheduler sched;
-    stdexec::in_place_stop_source ssource;
+    ex::inplace_stop_source ssource;
     bool called = false;
     int counter{};
     auto split = ex::split(
@@ -244,23 +247,22 @@ namespace {
         }));
     auto sndr1 = ex::on(
       sched,
-      ex::upon_stopped(
-        exec::write(split, exec::with(ex::get_stop_token, ssource.get_token())), [&] {
-          ++counter;
-          return 42;
-        }));
+      ex::upon_stopped(exec::write(split, exec::with(ex::get_stop_token, ssource.get_token())), [&] {
+        ++counter;
+        return 42;
+      }));
     auto sndr2 = exec::write(
       ex::on(
         sched,
         ex::upon_stopped(
-          split,
+          std::move(split),
           [&] {
             ++counter;
             return 42;
           })),
       exec::with(ex::get_stop_token, ssource.get_token()));
-    auto op1 = ex::connect(sndr1, expect_value_receiver{7});
-    auto op2 = ex::connect(sndr2, expect_stopped_receiver{});
+    auto op1 = ex::connect(std::move(sndr1), expect_value_receiver{7});
+    auto op2 = ex::connect(std::move(sndr2), expect_stopped_receiver{});
     REQUIRE(counter == 0);
     ex::start(op1); // puts a unit of work on the impulse_scheduler.
     REQUIRE(counter == 0);
@@ -286,12 +288,9 @@ namespace {
                  })
                | ex::split();
 
-    auto [val] = stdexec::sync_wait(split).value();
+    auto [val] = ex::sync_wait(split).value();
     REQUIRE(val == 42);
   }
-
-  template <class>
-  struct undef;
 
   TEST_CASE("split is thread-safe", "[adaptors][split]") {
     exec::static_thread_pool pool{1};
@@ -322,8 +321,7 @@ namespace {
 
         std::this_thread::sleep_for(delays[tid]);
         auto [val] =
-          stdexec::sync_wait(split | ex::transfer(scheduler) | ex::then([](int v) { return v; }))
-            .value();
+          ex::sync_wait(split | ex::transfer(scheduler) | ex::then([](int v) { return v; })).value();
         thread_results[tid] = val;
       });
     }
@@ -335,7 +333,7 @@ namespace {
 
   TEST_CASE("split can be an rvalue", "[adaptors][split]") {
     auto [val] =
-      stdexec::sync_wait(ex::just(42) | ex::split() | ex::then([](int v) { return v; })).value();
+      ex::sync_wait(ex::just(42) | ex::split() | ex::then([](int v) { return v; })).value();
 
     REQUIRE(val == 42);
   }
@@ -399,7 +397,7 @@ namespace {
 
     SECTION("lvalue split copyable sender") {
       auto multishot = ex::split(ex::just(copy_and_movable_type{0}));
-      ex::get_completion_signatures_t{}(multishot, ex::empty_env{});
+      ex::get_completion_signatures(multishot, ex::empty_env{});
       auto snd = multishot | ex::then([](const copy_and_movable_type&) {});
 
       REQUIRE(!ex::sender_of<decltype(multishot), ex::set_value_t(copy_and_movable_type)>);
@@ -430,7 +428,7 @@ namespace {
       ex::then(multishot, [](const TestType& obj) { return obj.val * 2; }),
       ex::then(multishot, [](const TestType& obj) { return obj.val * 3; }));
 
-    auto [v1, v2, v3] = stdexec::sync_wait(std::move(wa)).value();
+    auto [v1, v2, v3] = ex::sync_wait(std::move(wa)).value();
 
     REQUIRE(called == 1);
     REQUIRE(v1 == 11);
@@ -454,10 +452,11 @@ namespace {
           counter++;
           return counter;
         }));
-    auto wa = ex::when_all(
-      snd | ex::then([](auto) { return 10; }), snd | ex::then([](auto) { return 20; }));
+    auto wa = ex::when_all(snd | ex::then([](auto) { return 10; }), snd | ex::then([](auto) {
+                                                                      return 20;
+                                                                    }));
     REQUIRE(counter == 0);
-    auto [v1, v2] = stdexec::sync_wait(std::move(wa)).value();
+    auto [v1, v2] = ex::sync_wait(std::move(wa)).value();
     REQUIRE(counter == 1);
     REQUIRE(v1 == 10);
     REQUIRE(v2 == 20);
@@ -467,7 +466,7 @@ namespace {
     auto split_1 = ex::just(42) | ex::split();
     auto split_2 = split_1 | ex::split();
 
-    auto [v1] = stdexec::sync_wait(
+    auto [v1] = ex::sync_wait(
                   split_1 //
                   | ex::then([](const int& cv) {
                       int& v = const_cast<int&>(cv);
@@ -475,7 +474,7 @@ namespace {
                     }))
                   .value();
 
-    auto [v2] = stdexec::sync_wait(
+    auto [v2] = ex::sync_wait(
                   split_2 //
                   | ex::then([](const int& cv) {
                       int& v = const_cast<int&>(cv);
@@ -483,7 +482,7 @@ namespace {
                     }))
                   .value();
 
-    auto [v3] = stdexec::sync_wait(split_1).value();
+    auto [v3] = ex::sync_wait(split_1).value();
 
     REQUIRE(v1 == 1);
     REQUIRE(v2 == 2);
@@ -495,12 +494,39 @@ namespace {
 
     auto snd = ex::transfer_just(sched, 42) | ex::split();
     using snd_t = decltype(snd);
-    static_assert(
-      !stdexec::__callable<stdexec::get_completion_scheduler_t<ex::set_value_t>, snd_t>);
-    static_assert(
-      !stdexec::__callable<stdexec::get_completion_scheduler_t<ex::set_error_t>, snd_t>);
-    static_assert(
-      !stdexec::__callable<stdexec::get_completion_scheduler_t<ex::set_stopped_t>, snd_t>);
+    static_assert(!ex::__callable<ex::get_completion_scheduler_t<ex::set_value_t>, snd_t>);
+    static_assert(!ex::__callable<ex::get_completion_scheduler_t<ex::set_error_t>, snd_t>);
+    static_assert(!ex::__callable<ex::get_completion_scheduler_t<ex::set_stopped_t>, snd_t>);
     (void) snd;
   }
-}
+
+  struct my_sender {
+    using sender_concept = ex::sender_t;
+    using is_sender = void;
+
+    using completion_signatures = ex::completion_signatures_of_t<decltype(ex::just())>;
+
+    template <class Recv>
+    friend auto tag_invoke(ex::connect_t, my_sender&&, Recv&& recv) {
+      return ex::connect(ex::just(), std::forward<Recv>(recv));
+    }
+
+    template <class Recv>
+    friend auto tag_invoke(ex::connect_t, const my_sender&, Recv&& recv) {
+      return ex::connect(ex::just(), std::forward<Recv>(recv));
+    }
+  };
+
+  TEST_CASE("split accepts a custom sender", "[adaptors][split]") {
+    auto snd1 = my_sender();
+    auto snd2 = ex::split(std::move(snd1));
+    static_assert(ex::__well_formed_sender<decltype(snd1)>);
+    static_assert(ex::__well_formed_sender<decltype(snd2)>);
+    using Snd = decltype(snd2);
+    static_assert(ex::enable_sender<Snd>);
+    static_assert(ex::sender<Snd>);
+    static_assert(ex::same_as<ex::env_of_t<Snd>, empty_env>);
+    (void) snd1;
+    (void) snd2;
+  }
+} // namespace

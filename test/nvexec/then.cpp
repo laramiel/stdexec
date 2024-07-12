@@ -187,9 +187,7 @@ namespace {
     }
   }
 
-  TEST_CASE(
-    "nvexec then can return values of non-trivial types",
-    "[cuda][stream][adaptors][then]") {
+  TEST_CASE("nvexec then can return values of non-trivial types", "[cuda][stream][adaptors][then]") {
     nvexec::stream_context stream_ctx{};
     flags_storage_t flags_storage{};
     auto flags = flags_storage.get();
@@ -304,4 +302,4 @@ namespace {
 
     REQUIRE(handle.alive() == 0);
   }
-}
+} // namespace

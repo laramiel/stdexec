@@ -6,7 +6,6 @@
 #include "nvexec/stream/common.cuh"
 #include "nvexec/stream_context.cuh"
 #include "common.cuh"
-#include "stdexec/__detail/__p2300.hpp"
 
 namespace ex = stdexec;
 
@@ -116,4 +115,4 @@ namespace {
       REQUIRE(flags_storage.all_set_once());
     }
   }
-}
+} // namespace

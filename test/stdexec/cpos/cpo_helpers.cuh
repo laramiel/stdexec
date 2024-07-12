@@ -35,10 +35,6 @@ namespace {
       ex::set_value_t(),                                     //
       ex::set_error_t(std::exception_ptr),                   //
       ex::set_stopped_t()>;
-
-    friend empty_env tag_invoke(ex::get_env_t, const cpo_t&) noexcept {
-      return {};
-    }
   };
 
   template <class CPO>
@@ -52,12 +48,8 @@ namespace {
       ex::set_stopped_t()>;
 
     template <class... Ts>
-    friend auto tag_invoke(CPO, const free_standing_sender_t& self, Ts&&...) noexcept {
+    friend auto tag_invoke(CPO, const free_standing_sender_t&, Ts&&...) noexcept {
       return cpo_t<scope_t::free_standing>{};
-    }
-
-    friend empty_env tag_invoke(ex::get_env_t, const free_standing_sender_t&) noexcept {
-      return {};
     }
   };
 
@@ -68,7 +60,7 @@ namespace {
 
     struct env_t {
       template <stdexec::__one_of<ex::set_value_t, CompletionSignals...> Tag>
-      friend scheduler_t tag_invoke(ex::get_completion_scheduler_t<Tag>, const env_t&) noexcept {
+      scheduler_t query(ex::get_completion_scheduler_t<Tag>) const noexcept {
         return {};
       }
     };
@@ -82,7 +74,7 @@ namespace {
         ex::set_error_t(std::exception_ptr),                   //
         ex::set_stopped_t()>;
 
-      friend env_t tag_invoke(ex::get_env_t, const sender_t&) noexcept {
+      env_t get_env() const noexcept {
         return {};
       }
     };
@@ -92,16 +84,10 @@ namespace {
       return cpo_t<scope_t::scheduler>{};
     }
 
-    friend sender_t tag_invoke(ex::schedule_t, scheduler_t) {
+    sender_t schedule() const noexcept {
       return sender_t{};
     }
 
-    friend bool operator==(scheduler_t, scheduler_t) noexcept {
-      return true;
-    }
-
-    friend bool operator!=(scheduler_t, scheduler_t) noexcept {
-      return false;
-    }
+    bool operator==(const scheduler_t&) const noexcept = default;
   };
-}
+} // namespace

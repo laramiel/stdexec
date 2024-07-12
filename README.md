@@ -12,7 +12,8 @@
 `stdexec` is experimental in nature and subject to change without warning.
 The authors and NVIDIA do not guarantee that this code is fit for any purpose whatsoever.
 
-[![CI](https://github.com/NVIDIA/stdexec/workflows/CI/badge.svg)](https://github.com/NVIDIA/stdexec/actions)
+[![CI (CPU)](https://github.com/NVIDIA/stdexec/actions/workflows/ci.cpu.yml/badge.svg)](https://github.com/NVIDIA/stdexec/actions/workflows/ci.cpu.yml)
+[![CI (GPU)](https://github.com/NVIDIA/stdexec/actions/workflows/ci.gpu.yml/badge.svg)](https://github.com/NVIDIA/stdexec/actions/workflows/ci.gpu.yml)
 
 ## Example
 
@@ -55,6 +56,7 @@ int main()
 
 ## Resources
 - [Working with Asynchrony Generically: A Tour of Executors: Part 1](https://www.youtube.com/watch?v=xLboNIf7BTg) ([Part 2](https://www.youtube.com/watch?v=6a0zzUBUNW4)) (Video): A comprehensive introduction to Senders and structured concurrency
+- [What are Senders Good For, Anyway?](https://ericniebler.com/2024/02/04/what-are-senders-good-for-anyway/) (Blog): Demonstrates the value of a standard async programming model by wrapping a C-style async API in a sender
 - [From Zero to Sender/Receiver in ~60 Minutes](https://www.youtube.com/watch?v=xiaqNvqRB2E) (Video): Live-coding a toy sender/receiver implementation from scratch
 - [A Unifying Abstraction for Async in C++](https://www.youtube.com/watch?v=h-ExnuD6jms) (Video): A simple introduction to the concepts behind P2300
 - [A Universal Async Abstraction for C++](https://cor3ntin.github.io/posts/executors/) (Blog): An introduction to Senders
@@ -93,7 +95,7 @@ You can also try it directly on [godbolt.org](https://godbolt.org/z/acaE93xq3) w
 ### Requirements
 
 `stdexec` requires compiling with C++20 (`-std=c++20`) but otherwise does not have any dependencies and only requires a sufficiently new compiler:
-- clang 12+
+- clang 13+
 - gcc 11+
 - [nvc++ 22.11+](https://developer.nvidia.com/nvidia-hpc-sdk-releases) (required for [GPU support](#gpu-support)). If using `stdexec` from GitHub, then nvc++ 23.3+ is required.
 

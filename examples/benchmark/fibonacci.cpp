@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cstdlib>
 #include <iostream>
 
 #include <tbbexec/tbb_thread_pool.hpp>
@@ -22,7 +23,7 @@
 #include <exec/any_sender_of.hpp>
 #include <stdexec/execution.hpp>
 
-long serial_fib(int n) {
+long serial_fib(long n) {
   return n < 2 ? n : serial_fib(n - 1) + serial_fib(n - 2);
 }
 
@@ -50,7 +51,7 @@ struct fib_s {
 
     friend void tag_invoke(stdexec::start_t, operation& self) noexcept {
       if (self.n < self.cutoff) {
-        stdexec::set_value((Receiver&&) self.rcvr_, serial_fib(self.n));
+        stdexec::set_value(static_cast<Receiver&&>(self.rcvr_), serial_fib(self.n));
       } else {
         auto mkchild = [&](long n) {
           return stdexec::on(self.sched, fib_sender(fib_s{self.cutoff, n, self.sched}));
@@ -58,8 +59,8 @@ struct fib_s {
 
         stdexec::start_detached(
           stdexec::when_all(mkchild(self.n - 1), mkchild(self.n - 2))
-          | stdexec::then([rcvr = (Receiver&&) self.rcvr_](long a, long b) {
-              stdexec::set_value((Receiver&&) rcvr, a + b);
+          | stdexec::then([rcvr = static_cast<Receiver&&>(self.rcvr_)](long a, long b) mutable {
+              stdexec::set_value(static_cast<Receiver&&>(rcvr), a + b);
             }));
       }
     }
@@ -67,7 +68,7 @@ struct fib_s {
 
   template <stdexec::receiver_of<completion_signatures> Receiver>
   friend operation<Receiver> tag_invoke(stdexec::connect_t, fib_s self, Receiver rcvr) {
-    return {(Receiver&&) rcvr, self.cutoff, self.n, self.sched};
+    return {static_cast<Receiver&&>(rcvr), self.cutoff, self.n, self.sched};
   }
 };
 
@@ -90,9 +91,9 @@ int main(int argc, char** argv) {
   // skip 'warmup' iterations for performance measurements
   static constexpr size_t warmup = 1;
 
-  int cutoff = std::atoi(argv[1]);
-  int n = std::atoi(argv[2]);
-  int nruns = std::atoi(argv[3]);
+  long cutoff = std::strtol(argv[1], nullptr, 10);
+  long n = std::strtol(argv[2], nullptr, 10);
+  std::size_t nruns = std::strtoul(argv[3], nullptr, 10);
 
   if (nruns <= warmup) {
     std::cerr << "nruns should be >= " << warmup << std::endl;
@@ -102,7 +103,7 @@ int main(int argc, char** argv) {
   std::variant<tbbexec::tbb_thread_pool, exec::static_thread_pool> pool;
 
   if (argv[4] == std::string_view("tbb")) {
-    pool.emplace<tbbexec::tbb_thread_pool>((int) std::thread::hardware_concurrency());
+    pool.emplace<tbbexec::tbb_thread_pool>(static_cast<int>(std::thread::hardware_concurrency()));
   } else {
     pool.emplace<exec::static_thread_pool>(
       std::thread::hardware_concurrency(), exec::bwos_params{}, exec::get_numa_policy());
