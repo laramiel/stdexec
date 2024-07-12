@@ -86,11 +86,11 @@ namespace stdexec {
           _Args&&... __args) noexcept -> void {
         if constexpr (__same_as<_Tag, set_value_t>) {
           using __variant_t = __t<_State>;
-          try {
+          STDEXEC_INTERNAL_TRY {
             set_value(
               static_cast<_Receiver&&>(__rcvr),
               __variant_t{std::tuple<_Args&&...>{static_cast<_Args&&>(__args)...}});
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             stdexec::set_error(static_cast<_Receiver&&>(__rcvr), std::current_exception());
           }
         } else {

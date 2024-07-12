@@ -85,21 +85,21 @@ namespace stdexec {
 
       _Tp& value() & {
         if (!__has_value) {
-          throw __bad_optional_access();
+          STDEXEC_INTERNAL_THROW(__bad_optional_access());
         }
         return __value;
       }
 
       const _Tp& value() const & {
         if (!__has_value) {
-          throw __bad_optional_access();
+          STDEXEC_INTERNAL_THROW(__bad_optional_access());
         }
         return __value;
       }
 
       _Tp&& value() && {
         if (!__has_value) {
-          throw __bad_optional_access();
+          STDEXEC_INTERNAL_THROW(__bad_optional_access());
         }
         return static_cast<_Tp&&>(__value);
       }

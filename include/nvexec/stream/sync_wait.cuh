@@ -80,7 +80,7 @@ namespace nvexec::STDEXEC_STREAM_DETAIL_NS { namespace _sync_wait {
       template <class Sender2 = Sender, class... As>
         requires std::constructible_from<sync_wait_result_t<Sender2>, As...>
       void set_value(As&&... as) noexcept {
-        try {
+        STDEXEC_INTERNAL_TRY {
           int dev_id{};
           cudaStream_t stream = state_->stream_;
 
@@ -104,7 +104,7 @@ namespace nvexec::STDEXEC_STREAM_DETAIL_NS { namespace _sync_wait {
             set_error_(status);
           }
           loop_->finish();
-        } catch (...) {
+        } STDEXEC_INTERNAL_CATCH_ANY {
           set_error_(std::current_exception());
         }
       }
@@ -162,7 +162,7 @@ namespace nvexec::STDEXEC_STREAM_DETAIL_NS { namespace _sync_wait {
             static_cast<Sender&&>(__sndr), receiver_t<Sender>{{}, &state, &loop}, context_state);
         }});
       if (status != cudaSuccess) {
-        throw std::bad_alloc{};
+        STDEXEC_INTERNAL_THROW(std::bad_alloc{});
       }
 
       state.stream_ = __op_state->get_stream();

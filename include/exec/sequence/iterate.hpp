@@ -129,13 +129,13 @@ namespace exec {
           stdexec::set_value(static_cast<_Receiver&&>(__rcvr_));
         } else {
 
-          try {
+          STDEXEC_INTERNAL_TRY {
             stdexec::start(__op_.emplace(__conv{[&] {
               return stdexec::connect(
                 exec::set_next(__rcvr_, stdexec::on(__scheduler_, __sender_t<_Range>{this})),
                 __next_receiver_t{this});
             }}));
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             stdexec::set_error(static_cast<_Receiver&&>(__rcvr_), std::current_exception());
           }
         }

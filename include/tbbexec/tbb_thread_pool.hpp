@@ -176,9 +176,9 @@ namespace tbbexec {
               };
 
               if constexpr (MayThrow) {
-                try {
+                STDEXEC_INTERNAL_TRY {
                   self.apply(computation);
-                } catch (...) {
+                } STDEXEC_INTERNAL_CATCH_ANY {
                   std::uint32_t expected = total_threads;
 
                   if (self.thread_with_exception_.compare_exchange_strong(
@@ -236,9 +236,9 @@ namespace tbbexec {
               shared_state& state = shared_state_;
 
               if constexpr (MayThrow) {
-                try {
+                STDEXEC_INTERNAL_TRY {
                   state.data_.template emplace<tuple_t>(static_cast<As&&>(as)...);
-                } catch (...) {
+                } STDEXEC_INTERNAL_CATCH_ANY {
                   stdexec::set_error(std::move(state.rcvr_), std::current_exception());
                 }
               } else {

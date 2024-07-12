@@ -194,12 +194,12 @@ namespace stdexec {
           __invoke(static_cast<_Fun&&>(__fun), static_cast<_As&&>(__as)...));
       }
     } else {
-      try {
+      STDEXEC_INTERNAL_TRY {
         stdexec::__set_value_invoke<true>(
           static_cast<_Receiver&&>(__rcvr),
           static_cast<_Fun&&>(__fun),
           static_cast<_As&&>(__as)...);
-      } catch (...) {
+      } STDEXEC_INTERNAL_CATCH_ANY {
         stdexec::set_error(static_cast<_Receiver&&>(__rcvr), std::current_exception());
       }
     }

@@ -82,14 +82,14 @@ namespace exec {
         _Receiver __rcvr_;
 
         void start() & noexcept {
-          try {
+          STDEXEC_INTERNAL_TRY {
             if constexpr (__callable<_Tag, env_of_t<_Receiver>>) {
               const auto& __env = get_env(__rcvr_);
               stdexec::set_value(std::move(__rcvr_), _Tag{}(__env));
             } else {
               stdexec::set_value(std::move(__rcvr_), std::move(__default_));
             }
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
 
             stdexec::set_error(std::move(__rcvr_), std::current_exception());
           }

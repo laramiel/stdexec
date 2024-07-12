@@ -49,13 +49,13 @@ namespace nvexec::STDEXEC_STREAM_DETAIL_NS {
     if (status == cudaSuccess) {
       T* ptr = nullptr;
       if (status = STDEXEC_DBG_ERR(::cudaMalloc(&ptr, sizeof(T))); status == cudaSuccess) {
-        try {
+        STDEXEC_INTERNAL_TRY {
           T h(static_cast<As&&>(as)...);
           status = STDEXEC_DBG_ERR(::cudaMemcpy(ptr, &h, sizeof(T), cudaMemcpyHostToDevice));
           if (status == cudaSuccess) {
             return device_ptr<T>(ptr);
           }
-        } catch (...) {
+        } STDEXEC_INTERNAL_CATCH_ANY {
           status = cudaErrorUnknown;
           STDEXEC_DBG_ERR(::cudaFree(ptr));
         }
@@ -91,11 +91,11 @@ namespace nvexec::STDEXEC_STREAM_DETAIL_NS {
     T* ptr = nullptr;
 
     if (status == cudaSuccess) {
-      try {
+      STDEXEC_INTERNAL_TRY {
         ptr = static_cast<T*>(resource->allocate(sizeof(T), alignof(T)));
         ::new (static_cast<void*>(ptr)) T(static_cast<As&&>(as)...);
         return host_ptr<T>(ptr, {resource});
-      } catch (...) {
+      } STDEXEC_INTERNAL_CATCH_ANY {
         if (ptr) {
           status = cudaErrorUnknown;
           resource->deallocate(ptr, sizeof(T), alignof(T));
@@ -124,7 +124,7 @@ namespace nvexec::STDEXEC_STREAM_DETAIL_NS {
 
       if (cudaError_t status = STDEXEC_DBG_ERR(cudaMallocHost(&ret, bytes));
           status != cudaSuccess) {
-        throw std::bad_alloc();
+        STDEXEC_INTERNAL_THROW(std::bad_alloc{});
       }
 
       return ret;
@@ -148,7 +148,7 @@ namespace nvexec::STDEXEC_STREAM_DETAIL_NS {
       void* ret;
 
       if (cudaError_t status = STDEXEC_DBG_ERR(cudaMalloc(&ret, bytes)); status != cudaSuccess) {
-        throw std::bad_alloc();
+        STDEXEC_INTERNAL_THROW(std::bad_alloc{});
       }
 
       return ret;
@@ -170,7 +170,7 @@ namespace nvexec::STDEXEC_STREAM_DETAIL_NS {
 
       if (cudaError_t status = STDEXEC_DBG_ERR(cudaMallocManaged(&ret, bytes));
           status != cudaSuccess) {
-        throw std::bad_alloc();
+        STDEXEC_INTERNAL_THROW(std::bad_alloc{});
       }
 
       return ret;

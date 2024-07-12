@@ -154,6 +154,20 @@
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifdef STDEXEC_NO_EXCEPTIONS
+#define STDEXEC_INTERNAL_THROW(...) abort()
+#define STDEXEC_INTERNAL_TRY if (true)
+#define STDEXEC_INTERNAL_CATCH_ANY else if (false)
+#define STDEXEC_INTERNAL_RETHROW do {} while (false)
+#else
+#define STDEXEC_INTERNAL_THROW(...) throw __VA_ARGS__
+#define STDEXEC_INTERNAL_TRY try
+#define STDEXEC_INTERNAL_CATCH_ANY catch (...)
+#define STDEXEC_INTERNAL_RETHROW do { throw; } while (false)
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 #ifdef __CUDACC__
 #  define STDEXEC_CUDA(...) STDEXEC_HEAD_OR_TAIL(1, __VA_ARGS__)
 #else

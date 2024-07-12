@@ -652,10 +652,10 @@ namespace nvexec {
 
           if constexpr (stream_receiver<inner_receiver_t>) {
             if (inner_receiver_t::memory_allocation_size) {
-              try {
+              STDEXEC_INTERNAL_TRY {
                 this->temp_storage_ = this->context_state_.managed_resource_->allocate(
                   inner_receiver_t::memory_allocation_size);
-              } catch (...) {
+              } STDEXEC_INTERNAL_CATCH_ANY {
                 this->propagate_completion_signal(stdexec::set_error, cudaErrorMemoryAllocation);
                 return;
               }

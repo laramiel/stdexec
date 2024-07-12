@@ -85,12 +85,12 @@ namespace stdexec {
           _Tag,
           _Args&&... __args) noexcept -> void {
         if constexpr (__same_as<_Tag, set_value_t>) {
-          try {
+          STDEXEC_INTERNAL_TRY {
             static_assert(constructible_from<__t<_State>, _Args...>);
             stdexec::set_value(
               static_cast<_Receiver&&>(__rcvr),
               std::optional<__t<_State>>{static_cast<_Args&&>(__args)...});
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             stdexec::set_error(static_cast<_Receiver&&>(__rcvr), std::current_exception());
           }
         } else if constexpr (__same_as<_Tag, set_error_t>) {

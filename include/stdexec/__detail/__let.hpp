@@ -499,9 +499,9 @@ namespace stdexec {
           && __v<__nothrow_connectable_receiver_ref_t<_ResultSender, _Sched, env_of_t<_Receiver>>>) {
           __bind_(__state, __op_state, static_cast<_As&&>(__as)...);
         } else {
-          try {
+          STDEXEC_INTERNAL_TRY {
             __bind_(__state, __op_state, static_cast<_As&&>(__as)...);
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             using _Receiver = decltype(__op_state.__rcvr_);
             stdexec::set_error(static_cast<_Receiver&&>(__rcvr), std::current_exception());
           }

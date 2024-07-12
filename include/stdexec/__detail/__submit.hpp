@@ -121,13 +121,13 @@ namespace stdexec {
           using _OpAlloc = typename std::allocator_traits<_Alloc>::template rebind_alloc<_Op>;
           _OpAlloc __op_alloc{__alloc};
           auto __op = std::allocator_traits<_OpAlloc>::allocate(__op_alloc, 1);
-          try {
+          STDEXEC_INTERNAL_TRY {
             std::allocator_traits<_OpAlloc>::construct(
               __op_alloc, __op, static_cast<_Sender&&>(__sndr), static_cast<_Receiver&&>(__rcvr));
             stdexec::start(__op->__op_state_);
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             std::allocator_traits<_OpAlloc>::deallocate(__op_alloc, __op, 1);
-            throw;
+            STDEXEC_INTERNAL_RETHROW;
           }
         } else {
           start((new __operation<__id<_Sender>, __id<_Receiver>>{

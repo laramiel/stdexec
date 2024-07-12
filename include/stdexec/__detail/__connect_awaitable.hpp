@@ -185,7 +185,7 @@ namespace stdexec {
         __co_impl(_Awaitable __awaitable, _Receiver __rcvr) -> __operation_t<_Receiver> {
         using __result_t = __await_result_t<_Awaitable, __promise_t<_Receiver>>;
         std::exception_ptr __eptr;
-        try {
+        STDEXEC_INTERNAL_TRY {
           if constexpr (same_as<__result_t, void>)
             co_await (
               co_await static_cast<_Awaitable&&>(__awaitable),
@@ -195,7 +195,7 @@ namespace stdexec {
               set_value,
               static_cast<_Receiver&&>(__rcvr),
               co_await static_cast<_Awaitable&&>(__awaitable));
-        } catch (...) {
+        } STDEXEC_INTERNAL_CATCH_ANY {
           __eptr = std::current_exception();
         }
         co_await __co_call(

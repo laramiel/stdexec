@@ -136,12 +136,12 @@ namespace stdexec {
             }
             _Tag()(static_cast<_Receiver&&>(__rcvr), static_cast<_Args&&>(__args)...);
           } else {
-            try {
+            STDEXEC_INTERNAL_TRY {
               for (__shape_t __i{}; __i != __state.__shape_; ++__i) {
                 __state.__fun_(__i, __args...);
               }
               _Tag()(static_cast<_Receiver&&>(__rcvr), static_cast<_Args&&>(__args)...);
-            } catch (...) {
+            } STDEXEC_INTERNAL_CATCH_ANY {
               stdexec::set_error(static_cast<_Receiver&&>(__rcvr), std::current_exception());
             }
           }

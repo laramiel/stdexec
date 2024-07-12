@@ -117,7 +117,7 @@ namespace exec {
         __child_op_.__destroy(); // ... because this could potentially invalidate them.
         if constexpr (same_as<_Tag, set_value_t>) {
           // If the sender completed with true, we're done
-          try {
+          STDEXEC_INTERNAL_TRY {
             const bool __done = (static_cast<bool>(__args) && ...);
             if (__done) {
               stdexec::set_value(static_cast<_Receiver &&>(this->__receiver()));
@@ -125,7 +125,7 @@ namespace exec {
               __connect();
               stdexec::start(__child_op_.__get());
             }
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             stdexec::set_error(
               static_cast<_Receiver &&>(this->__receiver()), std::current_exception());
           }

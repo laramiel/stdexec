@@ -312,7 +312,7 @@ namespace exec {
           typename stop_token_of_t<env_of_t<_Receiver>>::template callback_type<__forward_stopped>;
 
         void __complete_() noexcept {
-          try {
+          STDEXEC_INTERNAL_TRY {
             auto __state = std::move(__state_);
             STDEXEC_ASSERT(__state != nullptr);
             std::unique_lock __guard{__state->__mutex_};
@@ -344,7 +344,7 @@ namespace exec {
                 },
                 __state->__data_);
             }
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
 
             stdexec::set_error(static_cast<_Receiver&&>(__rcvr_), std::current_exception());
           }
@@ -388,7 +388,7 @@ namespace exec {
         }
 
         void start() & noexcept {
-          try {
+          STDEXEC_INTERNAL_TRY {
             if (!!__state_) {
               std::unique_lock __guard{__state_->__mutex_};
               if (__state_->__data_.index() != 0) {
@@ -398,7 +398,7 @@ namespace exec {
                 __state_->__subscribers_.push_back(this);
               }
             }
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             stdexec::set_error(static_cast<_Receiver&&>(__rcvr_), std::current_exception());
           }
         }
@@ -545,12 +545,12 @@ namespace exec {
         template <class _Tag, class... _As>
         bool __save_completion(_Tag, _As&&... __as) noexcept {
           auto& __state = *__state_;
-          try {
+          STDEXEC_INTERNAL_TRY {
             std::unique_lock __guard{__state.__mutex_};
             using _Tuple = __decayed_std_tuple<_Tag, _As...>;
             __state.__data_.template emplace<_Tuple>(_Tag(), static_cast<_As&&>(__as)...);
             return true;
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             using _Tuple = std::tuple<set_error_t, std::exception_ptr>;
             __state.__data_.template emplace<_Tuple>(set_error_t(), std::current_exception());
           }

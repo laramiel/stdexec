@@ -230,9 +230,9 @@ namespace stdexec {
         if constexpr (__nothrow_callable<__tup::__mktuple_t, _Tag, _Args...>) {
           __state.__data_.emplace_from(__tup::__mktuple, __tag, static_cast<_Args&&>(__args)...);
         } else {
-          try {
+          STDEXEC_INTERNAL_TRY {
             __state.__data_.emplace_from(__tup::__mktuple, __tag, static_cast<_Args&&>(__args)...);
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             stdexec::set_error(static_cast<_Receiver&&>(__rcvr), std::current_exception());
             return;
           }

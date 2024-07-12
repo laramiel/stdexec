@@ -81,10 +81,10 @@ namespace exec {
           _Args &&...__args) noexcept -> void {
         if constexpr (same_as<_Tag, set_value_t>) {
           using __tuple_t = __t<_State>;
-          try {
+          STDEXEC_INTERNAL_TRY {
             set_value(
               static_cast<_Receiver &&>(__rcvr), __tuple_t{static_cast<_Args &&>(__args)...});
-          } catch (...) {
+          } STDEXEC_INTERNAL_CATCH_ANY {
             stdexec::set_error(static_cast<_Receiver &&>(__rcvr), std::current_exception());
           }
         } else {

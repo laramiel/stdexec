@@ -338,9 +338,9 @@ namespace exec {
           };
 
           if constexpr (MayThrow) {
-            try {
+            STDEXEC_INTERNAL_TRY {
               sh_state.apply(computation);
-            } catch (...) {
+            } STDEXEC_INTERNAL_CATCH_ANY {
               std::uint32_t expected = total_tasks;
 
               if (sh_state.task_with_exception_.compare_exchange_strong(
@@ -434,9 +434,9 @@ namespace exec {
       using tuple_t = stdexec::__decayed_std_tuple<As...>;
 
       if constexpr (MayThrow) {
-        try {
+        STDEXEC_INTERNAL_TRY {
           shared_state_.data_.template emplace<tuple_t>(std::move(as)...);
-        } catch (...) {
+        } STDEXEC_INTERNAL_CATCH_ANY {
           stdexec::set_error(std::move(shared_state_.rcvr_), std::current_exception());
         }
       } else {

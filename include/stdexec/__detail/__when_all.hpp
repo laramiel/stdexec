@@ -332,9 +332,9 @@ namespace stdexec {
           if constexpr (__nothrow_decay_copyable<_Error>) {
             __state.__errors_.template emplace<__decay_t<_Error>>(static_cast<_Error&&>(__err));
           } else {
-            try {
+            STDEXEC_INTERNAL_TRY {
               __state.__errors_.template emplace<__decay_t<_Error>>(static_cast<_Error&&>(__err));
-            } catch (...) {
+            } STDEXEC_INTERNAL_CATCH_ANY {
               __state.__errors_.template emplace<std::exception_ptr>(std::current_exception());
             }
           }
@@ -370,9 +370,9 @@ namespace stdexec {
             if constexpr ((__nothrow_decay_copyable<_Args> && ...)) {
               __opt_values.emplace(_Tuple{{static_cast<_Args&&>(__args)}...});
             } else {
-              try {
+              STDEXEC_INTERNAL_TRY {
                 __opt_values.emplace(_Tuple{{static_cast<_Args&&>(__args)}...});
-              } catch (...) {
+              } STDEXEC_INTERNAL_CATCH_ANY {
                 __set_error(__state, __rcvr, std::current_exception());
               }
             }
