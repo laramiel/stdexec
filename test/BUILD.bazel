@@ -6,13 +6,15 @@ cc_library(
     name = "test_common",
     testonly = 1,
     srcs = ["test_main.cpp"],
-    hdrs = glob(include = ["test_common/*.hpp"]),
+    hdrs = glob(["test_common/*.hpp"]),
     includes = ["."],
     deps = [
         "//:stdexec",
+        "//:exec",
         "@catch2//:catch2",
     ],
 )
+
 
 [cc_test(
     name = file.replace("/", "_")[:-4],
@@ -25,6 +27,9 @@ cc_library(
     deps = [
         ":test_common",
         "//:stdexec",
+        "//:exec",
+        "//:exec_detail",
+        "//:stdexec_detail",
         "@catch2//:catch2",
     ],
 ) for file in glob(
@@ -32,12 +37,9 @@ cc_library(
     exclude = [
         "test_common/**",
         "test_main.cpp",
+        "exec/test_libdispatch.cpp",
         "nvexec/**",
         "tbbexec/**",
         "stdexec/cpos/**",
-        "exec/test_repeat_effect_until_fail.cpp",
-        "exec/test_repeat_n_fail.cpp",
-        "stdexec/algos/adaptors/test_let_fail1.cpp",
-        "stdexec/algos/adaptors/test_then_fail1.cpp",
     ],
 )]

@@ -2,7 +2,71 @@ package(
 	default_visibility = ["//visibility:public"],
 )
 
-alias(
+cc_library(
     name = "stdexec",
-    actual = "//include:stdexec",
+    hdrs = glob(include = ["include/stdexec/*.hpp"]),
+    includes = [ "include"  ],
+    deps = [ ":stdexec_detail" ],
+)
+
+cc_library(
+    name = "exec",
+    srcs = ["src/system_context/system_context.cpp"],
+    hdrs = glob(
+        include = [
+            "include/exec/*.hpp",
+            "include/exec/linux/*.hpp",
+            "include/exec/sequence/*.hpp",
+        ],
+        exclude = [
+            "include/exec/linux/io_uring_context.hpp",
+            "include/exec/libdispatch_queue.hpp",
+            "include/exec/reschedule.hpp",
+        ],
+    ),
+    includes = [ "include"  ],
+    deps = [
+        ":exec_detail",
+        ":stdexec_detail",
+    ],
+)
+
+
+cc_library(
+    name = "stdexec_detail",
+    hdrs = glob(include = [
+        "include/stdexec/*.hpp",
+        "include/stdexec/__detail/*.hpp",
+    ]),
+    strip_include_prefix = "include",
+    includes = [ "include"  ],
+    visibility = [":__subpackages__"],
+)
+
+cc_library(
+    name = "exec_detail",
+    srcs = ["src/system_context/system_context.cpp"],
+    hdrs = glob(
+        include = [
+            "include/exec/*.hpp",
+            "include/exec/linux/*.hpp",
+            "include/exec/sequence/*.hpp",
+            "include/exec/__detail/*.h",
+            "include/exec/__detail/*.hpp",
+            "include/exec/linux/__detail/*.hpp",
+        ],
+        exclude = [
+            "include/exec/linux/io_uring_context.hpp",
+            "include/exec/libdispatch_queue.hpp",
+            "include/exec/reschedule.hpp",
+            "include/exec/__detail/__system_context_default_impl_entry.hpp",
+        ],
+    ),
+    strip_include_prefix = "include",
+    includes = [ "include"  ],
+    textual_hdrs = [
+        "include/exec/__detail/__system_context_default_impl_entry.hpp",
+    ],
+    visibility = [":__subpackages__"],
+    deps = [":stdexec_detail"],
 )

@@ -1,3 +1,11 @@
+# Enable using platform specific build settings
+build --enable_platform_specific_config
+
+# Use platforms to select toolchains (https://github.com/bazelbuild/bazel/issues/7260)
+build --incompatible_enable_cc_toolchain_resolution
+
+build:macos --config=generic_clang
+
 # ASAN (address sanitizer)
 # https://clang.llvm.org/docs/AddressSanitizer.html
 build:asan --cc_output_directory_tag=asan
